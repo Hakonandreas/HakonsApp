@@ -6,11 +6,6 @@ import pandas as pd
 df = pd.read_csv("open-meteo-subset.csv")
 
 st.subheader("Data med radvise linjediagrammer")
-import pandas as pd
-import streamlit as st
-
-# Import data
-df = pd.read_csv("/workspaces/HakonsApp/open-meteo-subset.csv")
 
 # Vis importerte data
 st.subheader("Imported Data Table")
