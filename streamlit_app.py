@@ -6,13 +6,10 @@ st.write(
     "My Streamlit app for IND320"
 )
 
-import streamlit as st
-import os
-
 st.sidebar.title("Navigation")
 
 # List of page names (must match filenames without .py)
-pages = ["Home", "Page1", "Page2", "Page3", "Page4"]
+pages = ["Home", "Page1", "Page2", "Page3"]
 choice = st.sidebar.selectbox("Go to", pages)
 
 # Load selected page
