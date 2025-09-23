@@ -1,26 +1,29 @@
 import streamlit as st
 import pandas as pd
 
-st.title("Page 1")
 
 # Import data from CSV
-df = pd.read_csv("open-meteo-subset.csv")
+df = pd.read_csv("/workspaces/HakonsApp/open-meteo-subset.csv")
 
 st.subheader("Imported Data Table")
 st.dataframe(df)
 
-# Lag to kolonner
-col1, col2 = st.columns([1, 1])  # Du kan justere forholdet, f.eks. [2, 1] for bredere tabell
+# Show row-wise line chart for the first month
+st.subheader("First Month Data (Row-wise Line Chart)")
 
-with col1:
-    st.dataframe(df)
+# Take first row of the dataframe (assumed first month)
+first_month = df.iloc[0]
 
-with col2:
-    st.subheader("First Month Data (Line Chart)")
-    first_month = df.iloc[0]
-    chart_data = pd.DataFrame({
-        'Month': df.columns,
-        'Value': first_month.values
-    })
-    st.line_chart(chart_data.set_index('Month'))
+# Reshape: each column becomes a row
+chart_data = pd.DataFrame({
+    "Column": df.columns,
+    "Value": first_month.values
+})
+
+# Display as a table
+st.table(chart_data)
+
+# Display as a line chart (row-wise)
+st.line_chart(chart_data.set_index("Column"))
+
 
