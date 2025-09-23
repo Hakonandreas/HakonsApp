@@ -9,13 +9,18 @@ df = pd.read_csv("open-meteo-subset.csv")
 st.subheader("Imported Data Table")
 st.dataframe(df)
 
-# Display a line chart for the first month of the data series (assuming first row is first month)
-st.subheader("First Month Data (Row-wise Line Chart)")
-first_month = df.iloc[0]
-chart_data = pd.DataFrame({
-	'Column': df.columns,
-	'Value': first_month.values
-})
-st.line_chart(chart_data.set_index('Column'))
+# Lag to kolonner
+col1, col2 = st.columns([1, 1])  # Du kan justere forholdet, f.eks. [2, 1] for bredere tabell
 
+with col1:
+    st.dataframe(df)
+
+with col2:
+    st.subheader("First Month Data (Line Chart)")
+    first_month = df.iloc[0]
+    chart_data = pd.DataFrame({
+        'Month': df.columns,
+        'Value': first_month.values
+    })
+    st.line_chart(chart_data.set_index('Month'))
 
