@@ -31,8 +31,9 @@ custom_limits = {
 
 
 
-# Show main table with custom y-limits per parameter
-st.subheader("First Month Data (Row-wise Line Chart with custom y-limits)")
+
+# Show combined table with per-row line charts and custom y-limits using st.data_editor
+st.subheader("First Month Data (Combined Table with Custom Line Charts)")
 
 def get_line_chart_column(param):
     if param in custom_limits:
@@ -44,20 +45,14 @@ def get_line_chart_column(param):
     )
 
 column_config = {
-    "Parameter": "Parameter",
-    "Values": get_line_chart_column(chart_df["Parameter"].iloc[0])  # placeholder, will be overridden per row
+    "Parameter": st.column_config.TextColumn("Parameter"),
+    "Values": [get_line_chart_column(param) for param in chart_df["Parameter"]]
 }
 
-# Streamlit does not support per-row column_config, so we split into sub-tables per parameter
-for i, row in chart_df.iterrows():
-    param = row["Parameter"]
-    values = row["Values"]
-    st.dataframe(
-        pd.DataFrame({"Parameter": [param], "Values": [values]}),
-        column_config={
-            "Parameter": "Parameter",
-            "Values": get_line_chart_column(param)
-        },
-        hide_index=True,
-    )
+st.data_editor(
+    chart_df,
+    column_config=column_config,
+    hide_index=True,
+    height=600,
+)
 
