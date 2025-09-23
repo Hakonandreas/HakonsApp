@@ -29,26 +29,30 @@ custom_limits = {
 }
 
 
-# Build column_config with custom y-limits for each parameter
-column_config = {"Parameter": "Parameter", "Values": None}
-line_chart_columns = []
-for param in chart_df["Parameter"]:
+
+# Show main table
+st.subheader("First Month Data (Row-wise Line Chart)")
+st.dataframe(
+    chart_df,
+    column_config={
+        "Parameter": "Parameter",
+        "Values": st.column_config.LineChartColumn(
+            "Målinger (første måned)",
+            y_min=int(df_t.min().min()),
+            y_max=int(df_t.max().max()),
+        ),
+    },
+    hide_index=True,
+)
+
+# Show individual line charts for each parameter with custom axes
+st.subheader("First Month Data (Custom y-limits per parameter)")
+for i, row in chart_df.iterrows():
+    param = row["Parameter"]
+    values = row["Values"]
     if param in custom_limits:
         ymin, ymax = custom_limits[param]
     else:
         ymin, ymax = int(df_t.min().min()), int(df_t.max().max())
-    line_chart_columns.append(
-        st.column_config.LineChartColumn(
-            f"{param} (first month)", y_min=ymin, y_max=ymax
-        )
-    )
-
-# Assign the correct LineChartColumn for each row
-column_config["Values"] = line_chart_columns
-
-st.subheader("First Month Data (Row-wise Line Chart with custom axes)")
-st.dataframe(
-    chart_df,
-    column_config=column_config,
-    hide_index=True,
-)
+    st.write(f"**{param}**")
+    st.line_chart(pd.DataFrame({param: values}), y_min=ymin, y_max=ymax)
