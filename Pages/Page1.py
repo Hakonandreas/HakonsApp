@@ -32,8 +32,9 @@ custom_limits = {
 
 
 
-# Show combined table with per-row line charts and custom y-limits using st.data_editor
-st.subheader("First Month Data (Combined Table with Custom Line Charts)")
+
+# Show main table with custom y-limits per parameter (separate tables)
+st.subheader("First Month Data (Row-wise Line Chart with custom y-limits)")
 
 def get_line_chart_column(param):
     if param in custom_limits:
@@ -44,15 +45,16 @@ def get_line_chart_column(param):
         f"Målinger (første måned)", y_min=ymin, y_max=ymax
     )
 
-column_config = {
-    "Parameter": st.column_config.TextColumn("Parameter"),
-    "Values": [get_line_chart_column(param) for param in chart_df["Parameter"]]
-}
-
-st.data_editor(
-    chart_df,
-    column_config=column_config,
-    hide_index=True,
-    height=600,
-)
+for i, row in chart_df.iterrows():
+    param = row["Parameter"]
+    values = row["Values"]
+    st.dataframe(
+        pd.DataFrame({"Parameter": [param], "Values": [values]}),
+        column_config={
+            "Parameter": "Parameter",
+            "Values": get_line_chart_column(param)
+        },
+        hide_index=True,
+        height=200,
+    )
 
