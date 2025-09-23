@@ -54,7 +54,6 @@ for i, row in chart_df.iterrows():
             "Parameter": "Parameter",
             "Values": get_line_chart_column(param)
         },
-        hide_index=True,
-        height=200,
+    hide_index=True,
     )
 
