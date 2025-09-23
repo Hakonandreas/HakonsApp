@@ -1,24 +1,25 @@
 import streamlit as st
+import os
 
 st.title("Project IND320")
 st.write(
     "My Streamlit app for IND320"
 )
 
-# sidebar menu with navigation to the pages
+import streamlit as st
+import os
+
 st.sidebar.title("Navigation")
-page = st.sidebar.selectbox("Go to", ["page1", "page2", "page3", "page4"])
-if page == "page1":
-    st.header("Page 1")
-    st.write("This is page 1 content.")
-elif page == "page2":
-    st.header("Page 2")
-    st.write("This is page 2 content.")
-elif page == "page3":       
-    st.header("Page 3")
-    st.write("This is page 3 content.")
-elif page == "page4":   
-    st.header("Page 4")
-    st.write("This is page 4 content.")
 
+# List of page names (must match filenames without .py)
+pages = ["Home", "Page1", "Page2", "Page3", "Page4"]
+choice = st.sidebar.radio("Go to", pages)
 
+# Load selected page
+if choice == "Home":
+    st.write("Welcome to the Home page!")
+else:
+    # Dynamically run the selected page from pages folder
+    with open(f"pages/{choice}.py", "r") as f:
+        code = f.read()
+    exec(code, globals())
