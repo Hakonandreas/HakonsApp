@@ -4,7 +4,7 @@ import pandas as pd
 st.title("Page 1")
 
 # Import data from CSV
-df = pd.read_csv("/workspaces/HakonsApp/open-meteo-subset.csv")
+df = pd.read_csv("open-meteo-subset.csv")
 
 st.subheader("Imported Data Table")
 st.dataframe(df)
