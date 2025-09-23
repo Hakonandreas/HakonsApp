@@ -67,9 +67,9 @@ chart_df = pd.DataFrame({
 
 # Tilpassede y-limits for utvalgte parametere
 custom_limits = {
-    "precipitation": (0, first_month_df["precipitation"].max()),
-    "wind_gusts_10m": (0, first_month_df["wind_gusts_10m"].max()),
-    "wind_speed_10m": (0, first_month_df["wind_speed_10m"].max()),
+    "precipitation (mm)": (0, first_month_df["precipitation (mm)"].max()),
+    "wind_speed_10m (m/s)": (0, first_month_df["wind_speed_10m (m/s)"].max()),
+    "wind_gusts_10m (m/s)": (0, first_month_df["wind_gusts_10m (m/s)"].max()),
 }
 
 # Bygg column_config dynamisk
