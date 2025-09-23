@@ -19,7 +19,7 @@ choice = st.sidebar.radio("Go to", pages)
 if choice == "Home":
     st.write("Welcome to the Home page!")
 else:
-    # Dynamically run the selected page from pages folder
-    with open(f"pages/{choice}.py", "r") as f:
+    # Dynamically run the selected page from Pages folder
+    with open(f"Pages/{choice}.py", "r") as f:
         code = f.read()
     exec(code, globals())
