@@ -61,14 +61,3 @@ for i, row in chart_df.iterrows():
         hide_index=True,
     )
 
-# Show individual line charts for each parameter with custom axes
-st.subheader("First Month Data (Custom y-limits per parameter)")
-for i, row in chart_df.iterrows():
-    param = row["Parameter"]
-    values = row["Values"]
-    if param in custom_limits:
-        ymin, ymax = custom_limits[param]
-    else:
-        ymin, ymax = int(df_t.min().min()), int(df_t.max().max())
-    st.write(f"**{param}**")
-    st.line_chart(pd.DataFrame({param: values}), y_min=ymin, y_max=ymax)
