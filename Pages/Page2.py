@@ -1,6 +1,6 @@
 import pandas as pd
 import streamlit as st
-import matplotlib.pyplot as plt
+import plotly.express as px
 
 # Load data
 df = pd.read_csv("open-meteo-subset.csv")
@@ -30,19 +30,14 @@ month_choice = st.select_slider(
 # Filter data
 df_filtered = df[df['month'] == month_choice]
 
-# --- Plot ---
-fig, ax = plt.subplots(figsize=(10, 5))
-
+# Plotting
 if col_choice:  # only plot if something is selected
-    for col in col_choice:
-        ax.plot(df_filtered['time'], df_filtered[col], label=col)
-    ax.legend()
-
-ax.set_title(f"Weather data - {month_choice}")
-ax.set_xlabel("Time")
-ax.set_ylabel("Value")
-plt.xticks(rotation=45)
-
-st.pyplot(fig)
-
+    fig = px.line(
+        df_filtered,
+        x="time",
+        y=col_choice,
+        title=f"Weather data - {month_choice}",
+        labels={"value": "Value", "time": "Time", "variable": "Parameter"}
+    )
+    st.plotly_chart(fig, use_container_width=True)
 
