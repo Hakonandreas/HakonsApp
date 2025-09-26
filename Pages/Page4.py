@@ -1,5 +1,5 @@
 import streamlit as st
-st.title("Page 4")
+st.title("What about a joke while you're here?")
 
 # write a joke about programming
 st.write("Why do programmers prefer dark mode? Because light attracts bugs!")
