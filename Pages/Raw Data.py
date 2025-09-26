@@ -24,7 +24,6 @@ chart_df = pd.DataFrame({
 
 st.subheader("First Month Data (Row-wise Line Chart, no y-limits)")
 
-# No custom y-limits – one table only
 st.dataframe(
     chart_df,
     column_config={

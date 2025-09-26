@@ -8,7 +8,7 @@ st.write(
 st.sidebar.title("Navigation")
 
 # List of page names (must match filenames without .py)
-pages = ["Home", "Page1", "Page2", "Page3", "Page4"]
+pages = ["Home", "Raw Data", "Weather Data Explorer", "Page3", "Page4"]
 choice = st.sidebar.selectbox("Go to", pages)
 
 # Load selected page

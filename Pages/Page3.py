@@ -1,5 +1,5 @@
-import streamlit as st
 import pandas as pd
+import streamlit as st
 import plotly.express as px
 
 # Load data
@@ -11,16 +11,15 @@ df['month'] = df['time'].dt.to_period('M').astype(str)
 
 st.title("Weather Data Explorer")
 
-# --- Checkbox selector ---
+# Column selector
 columns = list(df.columns.drop(['time', 'month']))
+col_choice = st.multiselect(
+    "Select columns to plot:",
+    options=columns,
+    default=[columns[0]]  # default: first column checked
+)
 
-st.write("Select columns to plot:")
-selected_cols = []
-for col in columns:
-    if st.checkbox(col, value=(col == columns[0])):  # first column checked by default
-        selected_cols.append(col)
-
-# --- Month selector ---
+# Month selector
 months = sorted(df['month'].unique())
 month_choice = st.select_slider(
     "Select month:",
@@ -28,18 +27,17 @@ month_choice = st.select_slider(
     value=months[0]
 )
 
-# --- Filter data ---
+# Filter data
 df_filtered = df[df['month'] == month_choice]
 
-# --- Plotly chart ---
-if selected_cols:
+# Plot
+if col_choice:  # only plot if something is selected
     fig = px.line(
         df_filtered,
         x="time",
-        y=selected_cols,
+        y=col_choice,
         title=f"Weather data - {month_choice}",
         labels={"value": "Value", "time": "Time", "variable": "Parameter"}
     )
-    fig.update_layout(xaxis_title="Time", yaxis_title="Value")
-
     st.plotly_chart(fig, use_container_width=True)
+
