@@ -1,5 +1,4 @@
 import streamlit as st
-import os
 
 st.title("Project IND320")
 st.write(
@@ -8,7 +7,7 @@ st.write(
 
 st.sidebar.title("Navigation")
 
-# List of page names (must match filenames without .py)
+'''# List of page names (must match filenames without .py)
 pages = ["Home", "Page1", "Page2", "Page3", "Page4"]
 choice = st.sidebar.radio("Go to", pages)
 
@@ -19,4 +18,4 @@ else:
     # Dynamically run the selected page from Pages folder
     with open(f"Pages/{choice}.py", "r") as f:
         code = f.read()
-    exec(code, globals())
+    exec(code, globals())'''
