@@ -4,56 +4,32 @@ import streamlit as st
 # Import data
 df = pd.read_csv("open-meteo-subset.csv")
 
-# Vis importerte data
+# Show imported data
 st.subheader("Imported Data Table")
 st.dataframe(df)
 
-# ---- Hent ut første måned ----
+# Convert time column
 df["time"] = pd.to_datetime(df["time"])
 first_month_mask = df["time"].dt.month == df["time"].iloc[0].month
 first_month_df = df.loc[first_month_mask]
 
-# Transponer: rad = parameter, values = liste med målinger gjennom måneden
+# Transpose so each parameter is a row
 df_t = first_month_df.drop(columns=["time"]).transpose()
 
+# Build chart dataframe
 chart_df = pd.DataFrame({
     "Parameter": df_t.index,
     "Values": df_t.values.tolist()
 })
 
-# Tilpassede y-limits for utvalgte parametere
-custom_limits = {
-    "precipitation (mm)": (0, first_month_df["precipitation (mm)"].max()),
-    "wind_speed_10m (m/s)": (0, first_month_df["wind_speed_10m (m/s)"].max()),
-    "wind_gusts_10m (m/s)": (0, first_month_df["wind_gusts_10m (m/s)"].max()),
-}
+st.subheader("First Month Data (Row-wise Line Chart, no y-limits)")
 
-
-
-
-
-
-# Show main table with custom y-limits per parameter (separate tables)
-st.subheader("First Month Data (Row-wise Line Chart with custom y-limits)")
-
-def get_line_chart_column(param):
-    if param in custom_limits:
-        ymin, ymax = custom_limits[param]
-    else:
-        ymin, ymax = int(df_t.min().min()), int(df_t.max().max())
-    return st.column_config.LineChartColumn(
-        f"Målinger (første måned)", y_min=ymin, y_max=ymax
-    )
-
-for i, row in chart_df.iterrows():
-    param = row["Parameter"]
-    values = row["Values"]
-    st.dataframe(
-        pd.DataFrame({"Parameter": [param], "Values": [values]}),
-        column_config={
-            "Parameter": "Parameter",
-            "Values": get_line_chart_column(param)
-        },
+# No custom y-limits – one table only
+st.dataframe(
+    chart_df,
+    column_config={
+        "Parameter": "Parameter",
+        "Values": st.column_config.LineChartColumn("Målinger (første måned)")
+    },
     hide_index=True,
-    )
-
+)
