@@ -10,7 +10,8 @@ choice = st.sidebar.selectbox("Go to", pages)
 
 # Load selected page
 if choice == "Home":
-    st.write("Welcome to the Home page! Select a page from the sidebar, and enjoy some amazing visualizations")
+    st.write("Welcome to the Home page! " \
+    "Select a page from the sidebar, and enjoy some amazing visualizations")
 else:
     # Dynamically run the selected page from Pages folder
     with open(f"Pages/{choice}.py", "r") as f:
