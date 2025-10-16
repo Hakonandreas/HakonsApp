@@ -7,7 +7,8 @@ import plotly.express as px
 st.title("Electricity Production")
 
 # Connect to MongoDB
-client = MongoClient(st.secrets['mongodb']['uri'])
+uri = st.secrets["mongodb"]["uri"]
+client = MongoClient(uri)
 db = client.get_database()
 collection = db['production']
 
