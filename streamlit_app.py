@@ -5,7 +5,7 @@ st.title("Project IND320")
 st.sidebar.title("Navigation")
 
 # List of page names (must match filenames without .py)
-pages = ["Home", "Raw Data", "Weather Data Explorer", "Page3", "Page4"]
+pages = ["Home", "Raw Data", "Weather Data Explorer", "Elhub", "Page4"]
 choice = st.sidebar.selectbox("Go to", pages)
 
 # Load selected page
