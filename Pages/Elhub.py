@@ -4,19 +4,8 @@ import pandas as pd
 import plotly.express as px
 import toml
 
-# Page title
-st.title("Electricity Production")
-
-secrets_path = "/workspaces/HakonsApp/.streamlit/secrets.toml"
-secrets = toml.load(secrets_path)
-
-mongo_uri = secrets["mongodb"]["uri"]
-
-client = MongoClient(mongo_uri)
 
 
-# Connect to MongoDB
-'''
 secret_path = ".streamlit/secrets.toml"
 uri = toml.load(open(secret_path))['mongodb']['uri']
 #uri = st.secrets['mongodb']['uri']
@@ -52,4 +41,3 @@ with left:
 
     # Display chart
     st.plotly_chart(fig, use_container_width=True)
-'''
