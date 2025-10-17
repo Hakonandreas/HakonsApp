@@ -7,8 +7,12 @@ import toml
 # Page title
 st.title("Electricity Production")
 
-# Connect to MongoDB
 
+st.write("Secrets loaded:", st.secrets)
+
+
+# Connect to MongoDB
+'''
 secret_path = ".streamlit/secrets.toml"
 uri = toml.load(open(secret_path))['mongodb']['uri']
 #uri = st.secrets['mongodb']['uri']
@@ -44,3 +48,4 @@ with left:
 
     # Display chart
     st.plotly_chart(fig, use_container_width=True)
+'''
