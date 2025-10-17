@@ -19,12 +19,22 @@ else:
     exec(code, globals())
 '''
 
-st.set_page_config(
-    page_title="Project IND320",
-    page_icon="📊" # You can use an emoji here
-)
+import streamlit as st
 
-st.title("Welcome to Project IND320!")
-st.sidebar.success("Select a page above.")
+st.title("Project IND320")
+st.sidebar.title("Navigation")
 
-st.write("Select a page from the sidebar to enjoy some amazing visualizations!")
+pages = ["Home", "Raw Data", "Weather Data Explorer", "Elhub", "Page4"]
+choice = st.sidebar.selectbox("Go to", pages)
+
+# Check secrets first
+st.write("Secrets currently loaded:", st.secrets)
+
+if choice == "Home":
+    st.write("Welcome to the Home page!")
+else:
+    page_path = f"Pages/{choice}.py"
+    st.write(f"Loading page: {page_path}")
+    with open(page_path, "r") as f:
+        code = f.read()
+    exec(code, globals())
