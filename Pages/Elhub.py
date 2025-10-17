@@ -4,8 +4,18 @@ import pandas as pd
 import plotly.express as px
 import toml
 
+from pymongo import MongoClient
+import streamlit as st
 
-st.write(st.secrets)
+# assume mongo_uri is correctly loaded from st.secrets
+client = MongoClient(mongo_uri)
+
+try:
+    # This will trigger a server selection and test connectivity
+    client.admin.command("ping")
+    st.success("Connected to MongoDB!")
+except Exception as e:
+    st.error(f"Failed to connect: {e}")
 
 
 '''
