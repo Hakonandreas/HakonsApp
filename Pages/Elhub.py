@@ -9,7 +9,7 @@ st.title("Electricity Production")
 
 # Connect to MongoDB
 
-secret_path = "/workspaces/HakonsApp/.streamlit/secrets.toml"
+secret_path = ".streamlit/secrets.toml"
 uri = toml.load(open(secret_path))['mongodb']['uri']
 #uri = st.secrets['mongodb']['uri']
 client = MongoClient(uri)
