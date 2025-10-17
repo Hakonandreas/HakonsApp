@@ -1,5 +1,5 @@
 import streamlit as st
-
+'''
 st.title("Project IND320")
 
 st.sidebar.title("Navigation")
@@ -17,3 +17,14 @@ else:
     with open(f"Pages/{choice}.py", "r") as f:
         code = f.read()
     exec(code, globals())
+'''
+
+st.set_page_config(
+    page_title="Project IND320",
+    page_icon="📊" # You can use an emoji here
+)
+
+st.title("Welcome to Project IND320!")
+st.sidebar.success("Select a page above.")
+
+st.write("Select a page from the sidebar to enjoy some amazing visualizations!")
