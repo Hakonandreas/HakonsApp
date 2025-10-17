@@ -5,8 +5,7 @@ import plotly.express as px
 import toml
 
 
-secrets_path = "/.streamlit/secrets.toml"
-secrets = toml.load(secrets_path)
+secrets = toml.load("/workspaces/HakonsApp/.streamlit/secrets.toml")
 
 mongo_uri = secrets['mongodb']['uri']
 
