@@ -4,11 +4,12 @@ import pandas as pd
 import plotly.express as px
 import toml
 
-
+# Correctly access the 'uri' key inside the 'mongodb' section
 uri = st.secrets["mongodb"]["uri"]
-client = MongoClient(uri)
-db = client.get_database()  # defaults to the database in the URI
-collection = db["your_collection_name"]
 
-data = list(collection.find())
-st.write(data)
+
+client = pymongo.MongoClient(uri)
+
+# Now you can work with your database
+db = client.test
+st.write("Successfully connected to MongoDB!")
