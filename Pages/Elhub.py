@@ -2,6 +2,7 @@ import streamlit as st
 from pymongo import MongoClient
 import pandas as pd
 import plotly.express as px
+import toml
 
 # Page title
 st.title("Electricity Production")
