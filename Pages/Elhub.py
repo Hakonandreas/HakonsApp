@@ -7,8 +7,12 @@ import toml
 # Page title
 st.title("Electricity Production")
 
+secrets_path = "/workspaces/HakonsApp/.streamlit/secrets.toml"
+secrets = toml.load(secrets_path)
 
-st.write("Secrets loaded:", st.secrets)
+mongo_uri = secrets["mongodb"]["uri"]
+
+client = MongoClient(mongo_uri)
 
 
 # Connect to MongoDB
