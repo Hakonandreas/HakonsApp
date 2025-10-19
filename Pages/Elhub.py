@@ -68,24 +68,41 @@ with right:
     months = sorted(df["month"].unique())
     selected_month = st.selectbox("Select month:", options=months)
 
-    # Filter based on all selections
+    # Filter data based on selections
     filtered = df[
         (df["pricearea"] == chosen_area)
         & (df["productiongroup"].isin(selected_groups))
         & (df["month"] == selected_month)
     ]
 
-    # Create line chart (e.g., daily quantity within the month)
     if not filtered.empty:
-        fig_line = px.line(
-            filtered,
-            x="date",
-            y="quantitykwh",
-            color="productiongroup",
-            title=f"Production Trends in {chosen_area} - {selected_month}",
-            markers=True
+        # Aggregate daily total production by production group
+        daily_prod = (
+            filtered.groupby(["date", "productiongroup"], as_index=False)
+            ["quantitykwh"]
+            .sum()
+            .rename(columns={"quantitykwh": "total_quantity"})
         )
+
+        # Create line chart (daily production)
+        fig_line = px.line(
+            daily_prod,
+            x="date",
+            y="total_quantity",
+            color="productiongroup",
+            title=f"Daily Production in {chosen_area} - {selected_month}",
+            markers=True,
+            labels={
+                "total_quantity": "Total Quantity (kWh)",
+                "date": "Date",
+                "productiongroup": "Production Group"
+            }
+        )
+
+        # Improve x-axis formatting (like your notebook)
+        fig_line.update_xaxes(tickformat="%b %d", hoverformat="%b %d")
+
+        # Display the chart
         st.plotly_chart(fig_line, use_container_width=True)
     else:
         st.warning("No data found for the selected combination.")
-
