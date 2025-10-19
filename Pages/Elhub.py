@@ -45,60 +45,6 @@ with left:
     st.plotly_chart(fig, use_container_width=True)
 
 
-import streamlit as st
-from pymongo import MongoClient
-import pandas as pd
-import plotly.express as px
-
-# --- Connect to MongoDB ---
-uri = st.secrets["mongodb"]["uri"]
-client = MongoClient(uri)
-db = client.test  # Replace 'test' with your actual DB name
-st.success("✅ Successfully connected to MongoDB!")
-
-# --- Load data ---
-collection = db.elhub_data  # Replace with your actual collection name
-data = list(collection.find())
-df = pd.DataFrame(data)
-
-# Drop MongoDB's automatic _id column if present
-if "_id" in df.columns:
-    df = df.drop(columns=["_id"])
-
-# --- Ensure column names match your dataset ---
-# Expected columns (adjust if needed):
-# 'pricearea', 'productiongroup', 'quantitykwh', 'month', 'date'
-# Rename if needed, e.g.:
-# df.rename(columns={"PriceArea": "pricearea", "ProductionGroup": "productiongroup", ...}, inplace=True)
-
-# --- Split the view into two columns ---
-col1, col2 = st.columns(2)
-
-# ===== LEFT COLUMN =====
-with col1:
-    st.subheader("💰 Price Area Overview")
-
-    # Select a price area
-    price_areas = sorted(df["pricearea"].unique())
-    chosen_area = st.radio("Select a price area:", options=price_areas)
-
-    # Filter and aggregate like in your notebook
-    area_data = (
-        df[df["pricearea"] == chosen_area]
-        .groupby("productiongroup", as_index=False)["quantitykwh"]
-        .sum()
-        .rename(columns={"quantitykwh": "total_quantity"})
-    )
-
-    # Create the pie chart
-    fig_pie = px.pie(
-        area_data,
-        names="productiongroup",
-        values="total_quantity",
-        title=f"Total Production in {chosen_area} (2021)"
-    )
-    st.plotly_chart(fig_pie, use_container_width=True)
-
 # RIGHT COLUMN
 with right:
     st.subheader("Production Trends")
@@ -127,7 +73,7 @@ with right:
     if not filtered.empty:
         fig_line = px.line(
             filtered,
-            x="date",              # Replace with your time column if different
+            x="date",
             y="quantitykwh",
             color="productiongroup",
             title=f"Production Trends in {chosen_area} - {selected_month}",
