@@ -22,7 +22,7 @@ df["date"] = df["starttime"].dt.date
 # Split the layout into two columns
 left, right = st.columns(2)
 
-# LEFT COLUMN
+# Left column
 with left:
     st.subheader("Price Area Overview")
 
@@ -51,7 +51,7 @@ with left:
     st.plotly_chart(fig, use_container_width=True)
 
 
-# RIGHT COLUMN
+# Right column
 with right:
     st.subheader("Production Trends")
 
@@ -106,3 +106,16 @@ with right:
         st.plotly_chart(fig_line, use_container_width=True)
     else:
         st.warning("No data found for the selected combination.")
+
+# Expander below the columns
+with st.expander("Data Source / Notes"):
+    st.markdown("""
+    - **Database:** MongoDB collection `production` in `elhub_db`.
+    - **Fields used:** `pricearea`, `productiongroup`, `quantitykwh`, `starttime`.
+    - **Date processing:** 
+        - `starttime` converted to datetime.
+        - Aggregated daily (`date`) and monthly (`month`) for charts.
+    - **Charts:** 
+        - Left column: total production per production group in a selected price area.
+        - Right column: daily production trends for selected production group(s) and month.
+    """)
