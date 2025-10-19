@@ -6,39 +6,50 @@ import plotly.express as px
 # Connect to MongoDB
 uri = st.secrets["mongodb"]["uri"]
 client = MongoClient(uri)
-db = client.elhub_db
+db = client.test  # Replace 'test' with your actual DB name
+st.success("✅ Successfully connected to MongoDB!")
 
-
-# --- Load data from MongoDB ---
-# Replace 'elhub_data' with your actual collection name
-collection = db.production
+# Load data
+collection = db.elhub_data  # Replace with your actual collection name
 data = list(collection.find())
 df = pd.DataFrame(data)
-
+'''
 # Drop MongoDB's automatic _id column if present
 if "_id" in df.columns:
-    df = df.drop(columns=["_id"])
+    df = df.drop(columns=["_id"])'''
 
-# --- Split view into two columns ---
+
+# For example:
+# df.rename(columns={"pricearea": "pricearea", "productiongroup": "productiongroup", "quantitykwh": "quantitykwh"}, inplace=True)
+
+# Split the layout into two columns
 left, right = st.columns(2)
 
-# ===== LEFT COLUMN =====
+# LEFT COLUMN
 with left:
     st.subheader("Price Area Overview")
 
     # Let the user select a price area
-    price_areas = df["PriceArea"].unique()
-    selected_area = st.radio("Select a price area:", options=price_areas)
+    price_areas = df["pricearea"].unique()
+    chosen_area = st.radio("Select a price area:", options=sorted(price_areas))
 
-    # Filter data for the selected area
-    area_data = df[df["PriceArea"] == selected_area]
-
-    # Create a pie chart (for example, distribution by production group)
-    fig_pie = px.pie(
-        area_data,
-        names="ProductionGroup",   # adjust column name if different
-        values="Value",            # adjust column name if different
-        title =f"Production Distribution in {selected_area}"
+    # Filter and aggregate like in my notebook
+    area_data = (
+        df[df["pricearea"] == chosen_area]
+        .groupby("productiongroup", as_index=False)["quantitykwh"]
+        .sum()
+        .rename(columns={"quantitykwh": "total_quantity"})
     )
-    
-    st.plotly_chart(fig_pie, use_container_width=True)
+
+    # Create pie chart
+    fig = px.pie(
+        area_data,
+        names="productiongroup",
+        values="total_quantity",
+        title=f"Total Production in {chosen_area} (2021)",
+        hole=0.0
+    )
+
+    # Display the chart
+    st.plotly_chart(fig, use_container_width=True)
+
