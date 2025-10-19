@@ -6,11 +6,11 @@ import plotly.express as px
 # Connect to MongoDB
 uri = st.secrets["mongodb"]["uri"]
 client = MongoClient(uri)
-db = client.test  # Replace 'test' with your actual DB name
-st.success("✅ Successfully connected to MongoDB!")
+db = client.elhub_db
+
 
 # Load data
-collection = db.elhub_data  # Replace with your actual collection name
+collection = db.production
 data = list(collection.find())
 df = pd.DataFrame(data)
 '''
