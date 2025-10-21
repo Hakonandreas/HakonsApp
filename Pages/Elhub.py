@@ -9,18 +9,8 @@ client = MongoClient(uri)
 db = client.elhub_db
 st.success("Successfully connected to MongoDB!")
 
-'''
-# Load data
-collection = db.production
-data = list(collection.find())
-df = pd.DataFrame(data)
 
-# Convert starttime to datetime and extract useful columns
-df["starttime"] = pd.to_datetime(df["starttime"])
-df["month"] = df["starttime"].dt.strftime("%Y-%m")  # e.g., "2021-12"
-df["date"] = df["starttime"].dt.date
-'''
-# Cache the data loading for performance
+# Cache the data loading for better performance
 @st.cache_data
 def load_data():
     collection = db.production
