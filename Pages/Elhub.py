@@ -70,16 +70,20 @@ with right:
 
     # Select month
 
-    month_order = (
-    pd.CategoricalDtype(
+    # Ensure 'month' is categorical with proper order
+    month_order = pd.CategoricalDtype(
         categories=[
             "January", "February", "March", "April", "May", "June",
             "July", "August", "September", "October", "November", "December"
         ],
         ordered=True
-    ))
+    )
     df["month"] = df["month"].astype(month_order)
-    months = df["month"].cat.categories[df["month"].notna().any()]
+
+    # Get only months that actually appear in the DataFrame
+    months = df["month"].dropna().cat.categories[df["month"].dropna().unique().argsort()]
+
+    # Streamlit selectbox
     selected_month = st.selectbox("Select month:", options=months)
     '''
     months = sorted(df["month"].unique())
