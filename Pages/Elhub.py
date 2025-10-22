@@ -17,7 +17,7 @@ def load_data():
     data = list(collection.find())
     df = pd.DataFrame(data)
     df["starttime"] = pd.to_datetime(df["starttime"])
-    df["month"] = df["starttime"].dt.strftime("%B %Y")
+    df["month"] = df["starttime"].dt.strftime("%B")
     df["date"] = df["starttime"].dt.date
     return df
 
