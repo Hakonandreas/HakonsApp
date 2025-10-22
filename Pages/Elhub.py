@@ -17,7 +17,7 @@ def load_data():
     data = list(collection.find())
     df = pd.DataFrame(data)
     df["starttime"] = pd.to_datetime(df["starttime"])
-    df["month"] = df["starttime"].dt.strftime("%B")
+    df["month"] = df["starttime"].dt.strftime("%Y-%m")
     df["date"] = df["starttime"].dt.date
     return df
 
@@ -69,9 +69,22 @@ with right:
     )
 
     # Select month
+
+    month_order = (
+    pd.CategoricalDtype(
+        categories=[
+            "January", "February", "March", "April", "May", "June",
+            "July", "August", "September", "October", "November", "December"
+        ],
+        ordered=True
+    ))
+    df["month"] = df["month"].astype(month_order)
+    months = df["month"].cat.categories[df["month"].notna().any()]
+    selected_month = st.selectbox("Select month:", options=months)
+    '''
     months = sorted(df["month"].unique())
     selected_month = st.selectbox("Select month:", options=months)
-
+'''
     # Filter data based on selections
     filtered = df[
         (df["pricearea"] == chosen_area)
