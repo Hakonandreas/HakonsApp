@@ -33,6 +33,7 @@ with left:
     # Let the user select a price area
     price_areas = df["pricearea"].unique()
     chosen_area = st.radio("Select a price area:", options=sorted(price_areas))
+    st.session_state["chosen_area"] = chosen_area
 
     # Filter and aggregate like in my notebook
     area_data = (
