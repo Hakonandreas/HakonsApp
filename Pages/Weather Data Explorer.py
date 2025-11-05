@@ -18,7 +18,7 @@ if not chosen_area:
 # Download ERA5 data using the shared helper
 # --------------------------------------
 city, lat, lon = get_city_from_area(chosen_area)
-year = st.number_input("Select year:", min_value=2000, max_value=2024, value=2023)
+year = 2021
 
 st.info(f"Fetching ERA5 data for **{city}** ({lat:.2f}, {lon:.2f}) in {year}...")
 
