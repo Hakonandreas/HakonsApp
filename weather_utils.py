@@ -71,4 +71,7 @@ def download_era5_data(latitude: float, longitude: float, year: int) -> pd.DataF
         hourly_data[var] = hourly.Variables(i).ValuesAsNumpy()
 
     df = pd.DataFrame(hourly_data)
+
+    df = df[df["time"].dt.year == year]
+
     return df
