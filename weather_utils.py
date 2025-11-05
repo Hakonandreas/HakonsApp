@@ -72,6 +72,8 @@ def download_era5_data(latitude: float, longitude: float, year: int) -> pd.DataF
 
     df = pd.DataFrame(hourly_data)
 
+    df["time"] = pd.to_datetime(df["time"]).dt.tz_convert("Europe/Oslo")
     df = df[df["time"].dt.year == year]
+
 
     return df
