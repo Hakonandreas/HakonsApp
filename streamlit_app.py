@@ -17,3 +17,8 @@ else:
     with open(f"Pages/{choice}.py", "r") as f:
         code = f.read()
     exec(code, globals())
+
+# Initialize session state variable if not present
+if "chosen_area" not in st.session_state:
+    st.session_state["chosen_area"] = "NO1" # Default area
+
