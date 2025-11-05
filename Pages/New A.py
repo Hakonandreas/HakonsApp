@@ -7,16 +7,15 @@ from weather_utils import get_city_from_area, download_era5_data
 
 st.title("Weather Data Analysis — STL & Spectrogram")
 
-# --------------------------------------
+
 # Check chosen area
-# --------------------------------------
 chosen_area = st.session_state.get("chosen_area")
 if not chosen_area:
     st.warning("Please select a price area on the main page first.")
     st.stop()
 
 city, lat, lon = get_city_from_area(chosen_area)
-year = st.number_input("Select year:", min_value=2000, max_value=2024, value=2023)
+year = 2021
 
 # --------------------------------------
 # Download ERA5 data
