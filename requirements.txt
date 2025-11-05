@@ -3,3 +3,6 @@ pandas
 plotly
 pymongo
 toml
+requests-cache
+retry-requests
+openmeteo-requests
