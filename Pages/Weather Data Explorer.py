@@ -7,10 +7,6 @@ st.title("Weather Data Explorer")
 # Check if a price area is selected
 chosen_area = st.session_state.get("chosen_area", None)
 
-if not chosen_area:
-    st.warning("Please select a price area on the main page first.")
-    st.stop()
-
 # Download ERA5 data using the shared helper
 city, lat, lon = get_city_from_area(chosen_area)
 year = 2021

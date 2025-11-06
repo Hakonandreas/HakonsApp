@@ -4,6 +4,7 @@ import requests_cache
 from retry_requests import retry
 import openmeteo_requests
 
+# Functions for weather data handling
 
 # Price area ↔ city mapping
 areas_df = pd.DataFrame({
@@ -52,6 +53,7 @@ def download_era5_data(latitude: float, longitude: float, year: int) -> pd.DataF
         "timezone": "Europe/Oslo"
     }
 
+    # Fetch data
     responses = openmeteo.weather_api(url, params=params)
     response = responses[0]
     hourly = response.Hourly()

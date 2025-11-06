@@ -9,6 +9,7 @@ from functions.elhub_utils import load_elhub_data
 
 df = load_elhub_data()
 
+# Use the chosen area from session_state
 pricearea = st.session_state["chosen_area"]
 
 st.title("STL & Spectrogram Analysis")
@@ -39,6 +40,7 @@ with tab1:
         .interpolate()
     )
 
+    # Run STL decomposition
     if dfa.empty:
         st.warning("No data found for the selected combination.")
     else:
@@ -91,6 +93,7 @@ with tab2:
         .interpolate()
     )
 
+    # Compute and plot spectrogram
     if dfa.empty:
         st.warning("No data available for this selection.")
     else:

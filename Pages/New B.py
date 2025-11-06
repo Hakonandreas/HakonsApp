@@ -8,13 +8,8 @@ from functions.weather_utils import get_city_from_area, download_era5_data
 
 st.title("Outlier and Anomaly Detection")
 
-# -------------------------------------------------
 # Use the chosen area from session_state
-# -------------------------------------------------
 chosen_area = st.session_state.get("chosen_area", None)
-if not chosen_area:
-    st.warning("⚠️ Please select a price area on the main page first.")
-    st.stop()
 
 city, lat, lon = get_city_from_area(chosen_area)
 year = 2021
@@ -24,14 +19,10 @@ st.info(f"Fetching ERA5 data for **{city} ({chosen_area})** — {year}")
 df = download_era5_data(lat, lon, year)
 df["time"] = pd.to_datetime(df["time"])
 
-# -------------------------------------------------
 # Create tabs
-# -------------------------------------------------
 tab_spc, tab_lof = st.tabs(["📈 Outlier / SPC Analysis", "💧 Anomaly / LOF Analysis"])
 
-# =================================================
-# 1️⃣ OUTLIER / SPC TAB
-# =================================================
+# OUTLIER / SPC TAB
 with tab_spc:
     st.subheader("Seasonally Adjusted Temperature Variation (SPC)")
 
@@ -81,9 +72,8 @@ with tab_spc:
     st.markdown(f"**Number of outliers:** {len(outliers)}")
     st.dataframe(outliers[["time", "temperature_2m", "SATV", "UCL", "LCL"]].head(10))
 
-# =================================================
-# 2️⃣ ANOMALY / LOF TAB
-# =================================================
+
+# ANOMALY / LOF TAB
 with tab_lof:
     st.subheader("Precipitation — Local Outlier Factor (LOF)")
 

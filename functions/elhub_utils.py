@@ -3,6 +3,8 @@ import toml
 from pymongo import MongoClient
 import streamlit as st
 
+# Functions for Elhub data handling
+
 # MongoDB Connection
 @st.cache_resource
 def get_mongo_client():

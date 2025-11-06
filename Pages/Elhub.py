@@ -18,7 +18,7 @@ with left:
     # Let the user select a price area
     price_areas = df["pricearea"].unique()
     chosen_area = st.radio("Select a price area:", options=sorted(price_areas))
-    st.session_state["chosen_area"] = chosen_area
+    st.session_state["chosen_area"] = chosen_area # Store selection in session_state for use in other pages
 
     # Filter and aggregate like in my notebook
     area_data = (
@@ -89,7 +89,7 @@ with right:
             }
         )
 
-        # Improve x-axis formatting (like your notebook)
+        # Improve x-axis formatting
         fig_line.update_xaxes(tickformat="%b %d", hoverformat="%b %d")
 
         # Display the chart
