@@ -1,27 +1,12 @@
 import streamlit as st
-from pymongo import MongoClient
 import pandas as pd
 import plotly.express as px
+from functions.elhub_utils import load_elhub_data
 
-# Connect to MongoDB
-uri = st.secrets["mongodb"]["uri"]
-client = MongoClient(uri)
-db = client.elhub_db
-st.success("Successfully connected to MongoDB!")
+st.title("Elhub Production Overview")
 
-
-# Cache the data loading for better performance
-@st.cache_data
-def load_data():
-    collection = db.production
-    data = list(collection.find())
-    df = pd.DataFrame(data)
-    df["starttime"] = pd.to_datetime(df["starttime"])
-    df["month"] = df["starttime"].dt.strftime("%Y-%m")
-    df["date"] = df["starttime"].dt.date
-    return df
-
-df = load_data()
+df = load_elhub_data()
+st.success("✅ Elhub production data loaded successfully!")
 
 # Split the layout into two columns
 left, right = st.columns(2)
