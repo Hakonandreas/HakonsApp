@@ -17,17 +17,13 @@ if not chosen_area:
 city, lat, lon = get_city_from_area(chosen_area)
 year = 2021
 
-# --------------------------------------
 # Download ERA5 data
-# --------------------------------------
 st.info(f"Fetching ERA5 data for **{city}** ({lat:.2f}, {lon:.2f}) in {year}...")
 df = download_era5_data(lat, lon, year)
 df["month"] = df["time"].dt.to_period("M").astype(str)
 st.success(f"✅ Data loaded for {city} ({chosen_area})")
 
-# --------------------------------------
 # Sidebar: Select parameter and month
-# --------------------------------------
 columns = [c for c in df.columns if c not in ["time", "month"]]
 param = st.selectbox("Select weather parameter for analysis:", columns)
 
@@ -40,12 +36,10 @@ ts = df_filtered[param]
 # Resample hourly to handle any irregularities
 ts = ts.resample("H").mean().interpolate()
 
-# --------------------------------------
 # Tabs
-# --------------------------------------
 tab1, tab2 = st.tabs(["STL Decomposition", "Spectrogram"])
 
-# --- STL Decomposition Tab ---
+# STL Decomposition Tab
 with tab1:
     st.subheader(f"STL Decomposition — {param} ({month_choice})")
 
@@ -72,7 +66,7 @@ with tab1:
         fig.update_layout(title=name, xaxis_title="Time", yaxis_title=param)
         st.plotly_chart(fig, use_container_width=True)
 
-# --- Spectrogram Tab ---
+# Spectrogram Tab
 with tab2:
     st.subheader(f"Spectrogram — {param} ({month_choice})")
     f, t, Sxx = spectrogram(ts.values, fs=1)  # hourly frequency = 1
