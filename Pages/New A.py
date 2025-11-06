@@ -2,7 +2,7 @@ import streamlit as st
 import pandas as pd
 from statsmodels.tsa.seasonal import STL
 import plotly.graph_objects as go
-from elhub_utils import load_elhub_data  # your shared utility
+from functions.elhub_utils import load_elhub_data  # your shared utility
 
 st.title("Production Data Analysis")
 
