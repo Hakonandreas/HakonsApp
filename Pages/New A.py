@@ -21,6 +21,7 @@ tab1, tab2 = st.tabs(["📈 STL Decomposition", "🎛 Spectrogram"])
 with tab1:
     st.subheader("Seasonal-Trend decomposition using LOESS (STL)")
 
+    # Production group selection and STL default parameters
     production_groups = sorted(df["productiongroup"].unique())
     productiongroup = st.selectbox("Select production group:", options=production_groups)
 
@@ -29,7 +30,7 @@ with tab1:
     trend = st.number_input("Trend smoother", value=int(period * 2 + 1))
     robust = st.checkbox("Robust fitting", value=True)
 
-    # Filter data
+    # Filter data and prepare for STL
     dfa = (
         df[(df["pricearea"] == pricearea) & (df["productiongroup"] == productiongroup)]
         .set_index("starttime")[["quantitykwh"]]
@@ -44,6 +45,7 @@ with tab1:
         stl = STL(dfa["quantitykwh"], period=period, seasonal=seasonal, trend=trend, robust=robust)
         res = stl.fit()
 
+        # Create subplots
         fig = make_subplots(
             rows=4,
             cols=1,

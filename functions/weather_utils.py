@@ -4,9 +4,8 @@ import requests_cache
 from retry_requests import retry
 import openmeteo_requests
 
-# --------------------------------------
+
 # Price area ↔ city mapping
-# --------------------------------------
 areas_df = pd.DataFrame({
     "price_area": ["NO1", "NO2", "NO3", "NO4", "NO5"],
     "city": ["Oslo", "Kristiansand", "Trondheim", "Tromsø", "Bergen"],
@@ -15,9 +14,7 @@ areas_df = pd.DataFrame({
 })
 
 
-# --------------------------------------
 # Helper functions
-# --------------------------------------
 def get_city_from_area(price_area: str):
     """Return (city, latitude, longitude) for a given price area code."""
     row = areas_df.loc[areas_df["price_area"] == price_area]
@@ -30,6 +27,7 @@ def get_city_from_area(price_area: str):
     )
 
 
+# Download ERA5 data
 @st.cache_data(show_spinner=True)
 def download_era5_data(latitude: float, longitude: float, year: int) -> pd.DataFrame:
     """Download ERA5 data from Open-Meteo for a given location and year."""
@@ -37,6 +35,7 @@ def download_era5_data(latitude: float, longitude: float, year: int) -> pd.DataF
     retry_session = retry(cache_session, retries=5, backoff_factor=0.2)
     openmeteo = openmeteo_requests.Client(session=retry_session)
 
+    # ERA5 API parameters
     url = "https://archive-api.open-meteo.com/v1/era5"
     params = {
         "latitude": latitude,
