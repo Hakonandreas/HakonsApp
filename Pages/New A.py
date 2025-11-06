@@ -1,84 +1,100 @@
 import streamlit as st
 import pandas as pd
-import plotly.graph_objects as go
-from statsmodels.tsa.seasonal import STL
+import numpy as np
 from scipy.signal import spectrogram
-from functions.weather_utils import get_city_from_area, download_era5_data
+from statsmodels.tsa.seasonal import STL
+import matplotlib.pyplot as plt
+import plotly.graph_objects as go
+from functions.elhub_utils import load_elhub_data 
 
-st.title("Weather Data Analysis — STL & Spectrogram")
+st.title("Production Data Analysis")
 
+# Tabs for STL and Spectrogram
+tab1, tab2 = st.tabs(["📈 STL Decomposition", "🎛 Spectrogram"])
 
-# Check chosen area
-chosen_area = st.session_state.get("chosen_area")
-if not chosen_area:
-    st.warning("Please select a price area on the main page first.")
-    st.stop()
+# Load Elhub data once
+df = load_elhub_data()
 
-city, lat, lon = get_city_from_area(chosen_area)
-year = 2021
-
-# Download ERA5 data
-st.info(f"Fetching ERA5 data for **{city}** ({lat:.2f}, {lon:.2f}) in {year}...")
-df = download_era5_data(lat, lon, year)
-df["month"] = df["time"].dt.to_period("M").astype(str)
-st.success(f"✅ Data loaded for {city} ({chosen_area})")
-
-# Sidebar: Select parameter and month
-columns = [c for c in df.columns if c not in ["time", "month"]]
-param = st.selectbox("Select weather parameter for analysis:", columns)
-
-months = sorted(df["month"].unique())
-month_choice = st.select_slider("Select month:", options=months, value=months[0])
-
-df_filtered = df[df["month"] == month_choice].set_index("time")
-ts = df_filtered[param]
-
-# Resample hourly to handle any irregularities
-ts = ts.resample("H").mean().interpolate()
-
-# Tabs
-tab1, tab2 = st.tabs(["STL Decomposition", "Spectrogram"])
-
-# STL Decomposition Tab
+# TAB 1: STL DECOMPOSITION
 with tab1:
-    st.subheader(f"STL Decomposition — {param} ({month_choice})")
+    st.subheader("STL Decomposition (Seasonal-Trend using LOESS)")
 
-    # User can set STL parameters optionally
-    period = st.number_input("Seasonal period (hours):", min_value=1, value=24)
-    seasonal = st.number_input("Seasonal smoothing:", min_value=1, value=13)
-    trend = st.number_input("Trend smoothing (odd number):", min_value=1, value=53)
-    robust = st.checkbox("Robust decomposition", value=True)
+    # User input
+    pricearea = st.selectbox("Select price area:", sorted(df["pricearea"].unique()))
+    productiongroup = st.selectbox("Select production group:", sorted(df["productiongroup"].unique()))
+    period = st.number_input("Period (hours)", value=24*7)
+    seasonal = st.number_input("Seasonal smoother", value=13)
+    trend = st.number_input("Trend smoother", value=int(period*2+1))
+    robust = st.checkbox("Robust fitting", value=True)
 
-    stl = STL(ts, period=period, seasonal=seasonal, trend=trend, robust=robust)
-    res = stl.fit()
+    # Filter and prepare data
+    df_filtered = df[(df["pricearea"] == pricearea) & (df["productiongroup"] == productiongroup)]
+    df_filtered = df_filtered.set_index("starttime")[["quantitykwh"]].resample("H").mean().interpolate()
 
-    # Separate plots for each component
-    components = {
-        "Observed": ts,
-        "Trend": res.trend,
-        "Seasonal": res.seasonal,
-        "Residual": res.resid
-    }
+    if df_filtered.empty:
+        st.warning("No data found for the selected combination.")
+    else:
+        # Perform STL decomposition
+        stl = STL(df_filtered["quantitykwh"], period=period, seasonal=seasonal, trend=trend, robust=robust)
+        res = stl.fit()
 
-    for name, series in components.items():
-        fig = go.Figure()
-        fig.add_trace(go.Scatter(x=series.index, y=series.values, name=name, line=dict(color="blue")))
-        fig.update_layout(title=name, xaxis_title="Time", yaxis_title=param)
-        st.plotly_chart(fig, use_container_width=True)
+        # Create subplots
+        fig, axes = plt.subplots(4, 1, figsize=(10, 8), sharex=True)
+        axes[0].plot(df_filtered.index, df_filtered["quantitykwh"], color="steelblue")
+        axes[0].set_title("STL Decomposition")
+        axes[0].set_ylabel("quantitykwh")
 
-# Spectrogram Tab
+        axes[1].plot(df_filtered.index, res.trend, color="royalblue")
+        axes[1].set_ylabel("Trend")
+
+        axes[2].plot(df_filtered.index, res.seasonal, color="seagreen")
+        axes[2].set_ylabel("Season")
+
+        axes[3].scatter(df_filtered.index, res.resid, s=5, color="darkred")
+        axes[3].set_ylabel("Resid")
+        axes[3].set_xlabel("Date")
+
+        plt.tight_layout()
+        st.pyplot(fig)
+
+# TAB 2: SPECTROGRAM
 with tab2:
-    st.subheader(f"Spectrogram — {param} ({month_choice})")
-    f, t, Sxx = spectrogram(ts.values, fs=1)  # hourly frequency = 1
-    fig = go.Figure(data=go.Heatmap(
-        z=Sxx,
-        x=t,
-        y=f,
-        colorscale="Viridis"
-    ))
-    fig.update_layout(
-        title="Spectrogram",
-        xaxis_title="Time (hours)",
-        yaxis_title="Frequency (1/hour)"
-    )
-    st.plotly_chart(fig, use_container_width=True)
+    st.subheader("Spectrogram of Production Data")
+
+    pricearea = st.selectbox("Price area:", sorted(df["pricearea"].unique()), key="spec_area")
+    productiongroup = st.selectbox("Production group:", sorted(df["productiongroup"].unique()), key="spec_group")
+    window_length = st.number_input("Window length (hours)", value=168)
+    overlap = st.slider("Overlap fraction", 0.0, 0.9, 0.5, 0.1)
+
+    # Filter and prepare data
+    df_filtered = df[(df["pricearea"] == pricearea) & (df["productiongroup"] == productiongroup)]
+    df_filtered = df_filtered.set_index("starttime")[["quantitykwh"]].resample("H").mean().interpolate()
+
+    if df_filtered.empty:
+        st.warning("No data found for the selected combination.")
+    else:
+        signal = df_filtered["quantitykwh"].values
+        fs = 1.0  # samples/hour
+        nperseg = int(window_length)
+        noverlap = int(window_length * overlap)
+
+        freqs, times, Sxx = spectrogram(signal, fs=fs, nperseg=nperseg, noverlap=noverlap)
+        Sxx_dB = 10 * np.log10(Sxx + 1e-10)
+        times_dt = df_filtered.index[0] + pd.to_timedelta(times, unit="h")
+
+        fig_spec = go.Figure(
+            data=go.Heatmap(
+                z=Sxx_dB,
+                x=times_dt,
+                y=freqs,
+                colorscale="Viridis",
+                colorbar=dict(title="Power (dB)")
+            )
+        )
+        fig_spec.update_layout(
+            title=f"Spectrogram — {productiongroup.capitalize()} ({pricearea})",
+            xaxis_title="Time",
+            yaxis_title="Frequency (cycles/hour)",
+            template="plotly_white"
+        )
+        st.plotly_chart(fig_spec, use_container_width=True)
