@@ -3,7 +3,7 @@ import pandas as pd
 import plotly.graph_objects as go
 from statsmodels.tsa.seasonal import STL
 from scipy.signal import spectrogram
-from weather_utils import get_city_from_area, download_era5_data
+from functions.weather_utils import get_city_from_area, download_era5_data
 
 st.title("Weather Data Analysis — STL & Spectrogram")
 

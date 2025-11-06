@@ -1,5 +1,5 @@
 import streamlit as st
-from weather_utils import get_city_from_area, download_era5_data
+from functions.weather_utils import get_city_from_area, download_era5_data
 
 chosen_area = st.session_state["chosen_area"]
 city, lat, lon = get_city_from_area(chosen_area)
