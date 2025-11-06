@@ -78,6 +78,7 @@ with tab_spc:
     st.plotly_chart(fig, width="stretch")
 
     st.markdown("### Outlier Summary")
+    st.markdown(f"**Number of outliers:** {len(outliers)}")
     st.dataframe(outliers[["time", "temperature_2m", "SATV", "UCL", "LCL"]].head(10))
 
 # =================================================
@@ -108,4 +109,5 @@ with tab_lof:
     st.plotly_chart(fig2, width="stretch")
 
     st.markdown("### Anomaly Summary")
+    st.markdown(f"**Number of anomalies:** {len(anomalies)}")
     st.dataframe(anomalies[["time", "precipitation"]].head(10))
