@@ -1,11 +1,8 @@
 import streamlit as st
 import pandas as pd
-import numpy as np
-from scipy.signal import spectrogram
 from statsmodels.tsa.seasonal import STL
-import matplotlib.pyplot as plt
 import plotly.graph_objects as go
-from functions.elhub_utils import load_elhub_data 
+from elhub_utils import load_elhub_data  # your shared utility
 
 st.title("Production Data Analysis")
 
@@ -15,6 +12,7 @@ tab1, tab2 = st.tabs(["📈 STL Decomposition", "🎛 Spectrogram"])
 # Load Elhub data once
 df = load_elhub_data()
 
+
 # TAB 1: STL DECOMPOSITION
 with tab1:
     st.subheader("STL Decomposition (Seasonal-Trend using LOESS)")
@@ -22,40 +20,107 @@ with tab1:
     # User input
     pricearea = st.selectbox("Select price area:", sorted(df["pricearea"].unique()))
     productiongroup = st.selectbox("Select production group:", sorted(df["productiongroup"].unique()))
-    period = st.number_input("Period (hours)", value=24*7)
+    period = st.number_input("Period (hours)", value=24 * 7)
     seasonal = st.number_input("Seasonal smoother", value=13)
-    trend = st.number_input("Trend smoother", value=int(period*2+1))
+    trend = st.number_input("Trend smoother", value=int(period * 2 + 1))
     robust = st.checkbox("Robust fitting", value=True)
 
     # Filter and prepare data
-    df_filtered = df[(df["pricearea"] == pricearea) & (df["productiongroup"] == productiongroup)]
-    df_filtered = df_filtered.set_index("starttime")[["quantitykwh"]].resample("H").mean().interpolate()
+    df_filtered = df[
+        (df["pricearea"] == pricearea) & (df["productiongroup"] == productiongroup)
+    ]
+    df_filtered = (
+        df_filtered.set_index("starttime")[["quantitykwh"]]
+        .resample("H")
+        .mean()
+        .interpolate()
+    )
 
     if df_filtered.empty:
         st.warning("No data found for the selected combination.")
     else:
         # Perform STL decomposition
-        stl = STL(df_filtered["quantitykwh"], period=period, seasonal=seasonal, trend=trend, robust=robust)
+        stl = STL(
+            df_filtered["quantitykwh"],
+            period=period,
+            seasonal=seasonal,
+            trend=trend,
+            robust=robust,
+        )
         res = stl.fit()
 
-        # Create subplots
-        fig, axes = plt.subplots(4, 1, figsize=(10, 8), sharex=True)
-        axes[0].plot(df_filtered.index, df_filtered["quantitykwh"], color="steelblue")
-        axes[0].set_title("STL Decomposition")
-        axes[0].set_ylabel("quantitykwh")
+        # Create Plotly figure with 4 subplots
+        from plotly.subplots import make_subplots
 
-        axes[1].plot(df_filtered.index, res.trend, color="royalblue")
-        axes[1].set_ylabel("Trend")
+        fig = make_subplots(
+            rows=4,
+            cols=1,
+            shared_xaxes=True,
+            vertical_spacing=0.05,
+            subplot_titles=("Observed", "Trend", "Seasonal", "Residual"),
+        )
 
-        axes[2].plot(df_filtered.index, res.seasonal, color="seagreen")
-        axes[2].set_ylabel("Season")
+        # Observed
+        fig.add_trace(
+            go.Scatter(
+                x=df_filtered.index,
+                y=df_filtered["quantitykwh"],
+                name="Observed",
+                line=dict(color="steelblue"),
+            ),
+            row=1,
+            col=1,
+        )
 
-        axes[3].scatter(df_filtered.index, res.resid, s=5, color="darkred")
-        axes[3].set_ylabel("Resid")
-        axes[3].set_xlabel("Date")
+        # Trend
+        fig.add_trace(
+            go.Scatter(
+                x=df_filtered.index,
+                y=res.trend,
+                name="Trend",
+                line=dict(color="royalblue"),
+            ),
+            row=2,
+            col=1,
+        )
 
-        plt.tight_layout()
-        st.pyplot(fig)
+        # Seasonal
+        fig.add_trace(
+            go.Scatter(
+                x=df_filtered.index,
+                y=res.seasonal,
+                name="Seasonal",
+                line=dict(color="seagreen"),
+            ),
+            row=3,
+            col=1,
+        )
+
+        # Residual
+        fig.add_trace(
+            go.Scatter(
+                x=df_filtered.index,
+                y=res.resid,
+                name="Residual",
+                mode="markers",
+                marker=dict(color="firebrick", size=4),
+            ),
+            row=4,
+            col=1,
+        )
+
+        # Layout adjustments
+        fig.update_layout(
+            height=800,
+            title=f"STL Decomposition — {productiongroup} ({pricearea})",
+            showlegend=False,
+            template="plotly_white",
+        )
+        fig.update_xaxes(title_text="Date", row=4, col=1)
+        fig.update_yaxes(title_text="kWh")
+
+        st.plotly_chart(fig, use_container_width=True)
+
 
 # TAB 2: SPECTROGRAM
 with tab2:
