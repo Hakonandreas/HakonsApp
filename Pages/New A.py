@@ -17,9 +17,7 @@ st.markdown(f"### Current price area: `{pricearea}`")
 # Tabs
 tab1, tab2 = st.tabs(["📈 STL Decomposition", "🎛 Spectrogram"])
 
-# ====================================================
 # TAB 1 — STL DECOMPOSITION
-# ====================================================
 with tab1:
     st.subheader("Seasonal-Trend decomposition using LOESS (STL)")
 
@@ -35,7 +33,7 @@ with tab1:
     dfa = (
         df[(df["pricearea"] == pricearea) & (df["productiongroup"] == productiongroup)]
         .set_index("starttime")[["quantitykwh"]]
-        .resample("H")
+        .resample("h")
         .mean()
         .interpolate()
     )
@@ -68,11 +66,9 @@ with tab1:
         fig.update_xaxes(title_text="Date", row=4, col=1)
         fig.update_yaxes(title_text="kWh")
 
-        st.plotly_chart(fig, use_container_width=True)
+        st.plotly_chart(fig, width='stretch')
 
-# ====================================================
 # TAB 2 — SPECTROGRAM
-# ====================================================
 with tab2:
     st.subheader("Spectrogram")
 
@@ -88,7 +84,7 @@ with tab2:
     dfa = (
         df[(df["pricearea"] == pricearea) & (df["productiongroup"] == productiongroup)]
         .set_index("starttime")[["quantitykwh"]]
-        .resample("H")
+        .resample("h")
         .mean()
         .interpolate()
     )
