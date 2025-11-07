@@ -1,6 +1,7 @@
 import streamlit as st
 import pandas as pd
 import plotly.express as px
+import plotly.graph_objects as go
 from scipy.fftpack import dct, idct
 from sklearn.neighbors import LocalOutlierFactor
 import numpy as np
