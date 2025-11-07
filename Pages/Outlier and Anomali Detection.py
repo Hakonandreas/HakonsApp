@@ -76,7 +76,7 @@ with tab_spc:
 
 
 # ANOMALY / LOF TAB
-with tab_lof:
+'''with tab_lof:
     st.subheader("Precipitation — Local Outlier Factor (LOF)")
 
     # UI controls
@@ -102,4 +102,91 @@ with tab_lof:
 
     st.markdown("### Anomaly Summary")
     st.markdown(f"**Number of anomalies:** {len(anomalies)}")
-    st.dataframe(anomalies[["time", "precipitation"]].head(10))
+    st.dataframe(anomalies[["time", "precipitation"]].head(10))'''
+
+    # ANOMALY / LOF TAB
+    with tab_lof:
+        st.subheader("Precipitation — Local Outlier Factor (LOF)")
+
+        # UI controls
+        outlier_frac = st.slider("Proportion of outliers", 0.0, 0.1, 0.01, step=0.001, format="%.3f")
+        method = st.radio("Detector", options=["LocalOutlierFactor", "IsolationForest"])
+        preprocess = st.selectbox("Preprocess precipitation", options=["None", "log1p", "rolling_mean(3)"])
+        n_neighbors = st.slider("LOF: n_neighbors", 5, 50, 20, step=1)
+        force_k = st.checkbox("Force exactly k = floor(proportion * n) anomalies", value=True)
+
+        # prepare values (1D)
+        precip = df["precipitation"].fillna(0).values  # keep zeros explicit
+        if preprocess == "log1p":
+            values = np.log1p(precip).reshape(-1, 1)
+        elif preprocess.startswith("rolling_mean"):
+            window = int(preprocess.split("(")[1].rstrip(")"))
+            values = pd.Series(precip).rolling(window=window, min_periods=1).mean().values.reshape(-1, 1)
+        else:
+            values = precip.reshape(-1, 1)
+
+        n = len(df)
+        expected_k = int(np.floor(outlier_frac * n))
+
+        if method == "LocalOutlierFactor":
+            lof = LocalOutlierFactor(n_neighbors=n_neighbors, contamination=outlier_frac, novelty=False)
+            # fit_predict works on same data
+            labels = lof.fit_predict(values)           # -1 outliers, 1 inliers
+            scores = lof.negative_outlier_factor_     # lower == more outlying
+            # By default, use the labels. But if user wants 'force_k', pick lowest k scores.
+            if force_k and expected_k > 0:
+                # select exactly k smallest scores
+                kth = np.sort(scores)[expected_k - 1] if expected_k <= len(scores) else scores.max()
+                forced_mask = scores <= kth
+                df["anomaly"] = forced_mask
+            else:
+                df["anomaly"] = labels == -1
+
+            # attach score column for debugging/inspection
+            df["lof_score"] = scores
+
+        else:  # IsolationForest
+            from sklearn.ensemble import IsolationForest
+            iso = IsolationForest(contamination=outlier_frac, random_state=0)
+            iso_labels = iso.fit_predict(values)  # -1 anomalies
+            df["anomaly"] = iso_labels == -1
+            df["lof_score"] = np.nan  # not used here
+
+            if force_k and expected_k > 0:
+                # force exact k for isolation forest by ranking the anomaly score (lower = more anomalous)
+                iso_scores = iso.score_samples(values)   # higher = more normal, so invert
+                rank_idx = np.argsort(iso_scores)  # smallest (most negative) are most anomalous
+                forced_mask = np.zeros(n, dtype=bool)
+                forced_mask[rank_idx[:expected_k]] = True
+                df["anomaly"] = forced_mask
+                df["lof_score"] = iso_scores
+
+        anomalies = df[df["anomaly"]]
+
+        # Debug / info to help understand discrete changes
+        st.markdown("**LOF / detector diagnostics**")
+        col1, col2, col3 = st.columns(3)
+        col1.metric("n samples", n)
+        col2.metric("expected k", expected_k)
+        col3.metric("actual anomalies", len(anomalies))
+        st.write("Unique precipitation values:", int(df["precipitation"].nunique()))
+        # show distribution of scores if available
+        if "lof_score" in df:
+            st.write("LOF score summary (if present):")
+            st.write(df["lof_score"].describe())
+
+        # Plot
+        fig2 = px.line(df, x="time", y="precipitation",
+                    title=f"Precipitation — LOF Anomaly Detection ({city}, {year})",
+                    labels={"precipitation": "Precipitation (mm)"})
+
+        fig2.add_scatter(x=anomalies["time"], y=anomalies["precipitation"],
+                        mode="markers", name="Anomalies",
+                        marker=dict(color="red", size=6, symbol="x"))
+
+        st.plotly_chart(fig2, use_container_width=True)
+
+        st.markdown("### Anomaly Summary")
+        st.markdown(f"**Number of anomalies:** {len(anomalies)}")
+        st.dataframe(anomalies[["time", "precipitation"]].head(20))
+
