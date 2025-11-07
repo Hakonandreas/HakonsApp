@@ -28,7 +28,7 @@ with tab_spc:
 
     # UI controls
     cutoff_frac = st.slider("DCT frequency cut-off fraction", 0.001, 0.05, 0.01, step=0.001)
-    n_std = st.slider("Number of MAD deviations", 1.0, 6.0, 3.0, step=0.5)
+    n_std = st.slider("Number of standard deviations", 1.0, 6.0, 3.0, step=0.5)
 
     # Run analysis
     temp = df["temperature_2m"].values
@@ -43,10 +43,12 @@ with tab_spc:
     df["SATV"] = satv
     df["Trend"] = trend
 
-    median_satv = np.median(satv)
-    mad_satv = np.median(np.abs(satv - median_satv))
-    ucl = median_satv + n_std * mad_satv
-    lcl = median_satv - n_std * mad_satv
+    # --- Changed from MAD to standard deviation ---
+    mean_satv = np.mean(satv)
+    std_satv = np.std(satv)
+    ucl = mean_satv + n_std * std_satv
+    lcl = mean_satv - n_std * std_satv
+    # ------------------------------------------------
 
     df["UCL"] = df["Trend"] + ucl
     df["LCL"] = df["Trend"] + lcl
@@ -66,7 +68,7 @@ with tab_spc:
                     mode="markers", name="Outliers",
                     marker=dict(color="red", size=6, symbol="x"))
 
-    st.plotly_chart(fig, width="stretch")
+    st.plotly_chart(fig, use_container_width=True)
 
     st.markdown("### Outlier Summary")
     st.markdown(f"**Number of outliers:** {len(outliers)}")
@@ -96,7 +98,7 @@ with tab_lof:
                      mode="markers", name="Anomalies",
                      marker=dict(color="red", size=6, symbol="x"))
 
-    st.plotly_chart(fig2, width="stretch")
+    st.plotly_chart(fig2, use_container_width=True)
 
     st.markdown("### Anomaly Summary")
     st.markdown(f"**Number of anomalies:** {len(anomalies)}")
