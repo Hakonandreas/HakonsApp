@@ -81,35 +81,36 @@ with tab_lof:
     st.subheader("Precipitation — Local Outlier Factor (LOF)")
 
     # --- UI controls ---
-    outlier_frac = st.slider("Proportion of outliers", 0.001, 0.1, 0.01, step=0.01)
+    outlier_frac = st.slider("Proportion of anomalies (only among rainy days)", 0.001, 0.1, 0.01, step=0.005)
 
     # --- Prepare data ---
-    precip = df["precipitation"].fillna(0).astype(float)
-    # Smooth short-term noise (3-hour rolling mean)
-    smoothed = precip.rolling(window=3, min_periods=1).mean()
-    # Log-transform to reduce effect of large spikes
-    X = np.log1p(smoothed.values.reshape(-1, 1))
+    precip = df["precipitation"].fillna(0)
+    nonzero_mask = precip > 0
+    X = np.log1p(precip[nonzero_mask].values.reshape(-1, 1))  # log(1 + x) transform
 
-    # --- Fit LOF (density-based anomaly detection) ---
-    if len(X) > 10:
-        n_neighbors = max(5, min(20, len(X) // 10))
+    if np.sum(nonzero_mask) > 20:
+        n_neighbors = min(20, len(X) - 1)
         lof = LocalOutlierFactor(n_neighbors=n_neighbors)
         lof.fit(X)
         scores = -lof.negative_outlier_factor_
 
-        # Compute threshold based on chosen fraction
+        # Define threshold using quantile based on slider
         threshold = np.quantile(scores, 1 - outlier_frac)
-        df["anomaly"] = scores > threshold
+        anomaly_mask = scores > threshold
+
+        # Build full-length anomaly column (fill False for dry days)
+        df["anomaly"] = False
+        df.loc[nonzero_mask, "anomaly"] = anomaly_mask
     else:
         df["anomaly"] = False
-        st.warning("Not enough data for LOF analysis.")
+        st.warning("Not enough non-zero precipitation values for LOF analysis.")
 
     anomalies = df[df["anomaly"]]
 
-    # --- Plot results ---
+    # --- Plot ---
     fig2 = go.Figure()
     fig2.add_trace(go.Scatter(
-        x=df["time"], y=precip,
+        x=df["time"], y=df["precipitation"],
         mode="lines", name="Precipitation (mm)",
         line=dict(width=1.2, color="blue"),
         hovertemplate="%{x}<br>Precip: %{y:.2f} mm<extra></extra>"
@@ -119,7 +120,7 @@ with tab_lof:
         x=anomalies["time"], y=anomalies["precipitation"],
         mode="markers", name=f"Anomalies ({len(anomalies)})",
         marker=dict(color="red", size=6, symbol="x"),
-        hovertemplate="Outlier<br>%{x}<br>Precip: %{y:.2f} mm<extra></extra>"
+        hovertemplate="Anomaly<br>%{x}<br>Precip: %{y:.2f} mm<extra></extra>"
     ))
 
     fig2.update_layout(
@@ -132,8 +133,8 @@ with tab_lof:
 
     st.plotly_chart(fig2, use_container_width=True)
 
-    # --- Anomaly summary ---
     st.markdown("### Anomaly Summary")
     st.markdown(f"**Number of anomalies:** {len(anomalies)}")
     st.dataframe(anomalies[["time", "precipitation"]].head(10))
+
 
