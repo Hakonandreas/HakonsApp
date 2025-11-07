@@ -80,7 +80,7 @@ with tab_lof:
     st.subheader("Precipitation — Local Outlier Factor (LOF)")
 
     # UI controls
-    outlier_frac = st.slider("Proportion of outliers", 0.001, 0.1, 0.01, step=0.005)
+    outlier_frac = st.slider("Proportion of outliers", 0.001, 0.1, 0.01, step=0.01)
 
     values = df[["precipitation"]].values
     lof = LocalOutlierFactor(n_neighbors=20, contamination=outlier_frac)
