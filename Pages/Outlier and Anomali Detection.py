@@ -80,14 +80,15 @@ with tab_spc:
 with tab_lof:
     st.subheader("Precipitation — Local Outlier Factor (LOF)")
 
-    # --- UI controls ---
+    # UI controls
     outlier_frac = st.slider("Proportion of anomalies (only among rainy days)", 0.001, 0.1, 0.01, step=0.005)
 
-    # --- Prepare data ---
+    # Prepare data
     precip = df["precipitation"].fillna(0)
     nonzero_mask = precip > 0
     X = np.log1p(precip[nonzero_mask].values.reshape(-1, 1))  # log(1 + x) transform
 
+    
     if np.sum(nonzero_mask) > 20:
         n_neighbors = min(20, len(X) - 1)
         lof = LocalOutlierFactor(n_neighbors=n_neighbors)
@@ -107,7 +108,7 @@ with tab_lof:
 
     anomalies = df[df["anomaly"]]
 
-    # --- Plot ---
+    # Plot
     fig2 = go.Figure()
     fig2.add_trace(go.Scatter(
         x=df["time"], y=df["precipitation"],
