@@ -102,4 +102,4 @@ with tab_lof:
 
     st.markdown("### Anomaly Summary")
     st.markdown(f"**Number of anomalies:** {len(anomalies)}")
-    st.dataframe(anomalies[["time", "precipitation"]].head(10))'''
+    st.dataframe(anomalies[["time", "precipitation"]].head(10))
