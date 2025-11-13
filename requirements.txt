@@ -9,3 +9,4 @@ openmeteo-requests
 statsmodels
 scipy
 scikit-learn
+folium
