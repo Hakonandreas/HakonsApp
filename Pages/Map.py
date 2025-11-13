@@ -3,8 +3,9 @@ import folium
 from streamlit_folium import st_folium
 import json
 from shapely.geometry import shape, Point
+from pathlib import Path
 
-# --- Load GeoJSON safely ---
+# --- Load GeoJSON ---
 with open('data/ElSpot_omraade.geojson', "r", encoding="utf-8") as f:
     geojson_data = json.load(f)
 
@@ -19,9 +20,9 @@ if "selected_area" not in st.session_state:
 # --- Folium Map ---
 m = folium.Map(location=[63.0, 10.5], zoom_start=5.5)
 
-# --- Style function ---
+# --- Style function using correct property ---
 def style_function(feature):
-    area_name = feature["properties"].get("ElSpot_omraade", "Unknown")
+    area_name = feature["properties"].get("ElSpotOmr", "Unknown")
     if st.session_state.selected_area == area_name:
         return {"fillColor": "#ffff00", "color": "red", "weight": 3, "fillOpacity": 0.2}
     return {"fillColor": "#ffffff", "color": "blue", "weight": 2, "fillOpacity": 0.1}
@@ -31,7 +32,7 @@ folium.GeoJson(
     geojson_data,
     style_function=style_function,
     tooltip=folium.GeoJsonTooltip(
-        fields=["ElSpot_omraade"],
+        fields=["ElSpotOmr"],  # use correct field name
         aliases=["Price area:"],
         localize=True,
         labels=True,
@@ -46,7 +47,7 @@ def handle_click(lat, lon):
     for feature in geojson_data["features"]:
         polygon = shape(feature["geometry"])
         if polygon.contains(point):
-            st.session_state.selected_area = feature["properties"].get("ElSpot_omraade", "Unknown")
+            st.session_state.selected_area = feature["properties"].get("ElSpotOmr", "Unknown")
             break
     else:
         st.session_state.selected_area = None
