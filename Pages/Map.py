@@ -5,7 +5,7 @@ import json
 
 # --- Load GeoJSON ---
 # Make sure you downloaded ElSpot_omraade.geojson from NVE site
-with open("../data/ElSpot_omraade.geojson", "r", encoding="utf-8") as f:
+with open("data/ElSpot_omraade.geojson", "r", encoding="utf-8") as f:
     geojson_data = json.load(f)
 
 # --- App title ---
