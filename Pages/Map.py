@@ -1,13 +1,17 @@
 import streamlit as st
-import folium
-from streamlit_folium import st_folium
 import json
 from shapely.geometry import shape, Point
-from pathlib import Path
+import plotly.express as px
+import plotly.graph_objects as go
+from streamlit_plotly_events import plotly_events
 
-# --- Load GeoJSON ---
-with open('data/ElSpot_omraade.geojson', "r", encoding="utf-8") as f:
-    geojson_data = json.load(f)
+# --- Load GeoJSON with cache ---
+@st.cache_data
+def load_geojson():
+    with open('data/ElSpot_omraade.geojson', "r", encoding="utf-8") as f:
+        return json.load(f)
+
+geojson_data = load_geojson()
 
 st.title("Norway Price Areas Map (NO1-NO5)")
 
@@ -17,50 +21,71 @@ if "clicked_point" not in st.session_state:
 if "selected_area" not in st.session_state:
     st.session_state.selected_area = None
 
-# --- Create Folium map ---
-m = folium.Map(location=[63.0, 10.5], zoom_start=5.5)
-
-# --- Style function for GeoJSON ---
-def style_function(feature):
-    area_name = feature["properties"].get("ElSpotOmr", "Unknown")
-    if st.session_state.selected_area == area_name:
-        return {"fillColor": "#ffff00", "color": "red", "weight": 3, "fillOpacity": 0.2}
-    return {"fillColor": "#ffffff", "color": "blue", "weight": 2, "fillOpacity": 0.1}
-
-folium.GeoJson(
-    geojson_data,
-    style_function=style_function,
-    tooltip=folium.GeoJsonTooltip(
-        fields=["ElSpotOmr"],
-        aliases=["Price area:"]
-    )
-).add_to(m)
-
-# --- Add marker for clicked point if exists ---
-if st.session_state.clicked_point:
-    folium.Marker(
-        location=st.session_state.clicked_point,
-        icon=folium.Icon(color="red", icon="info-sign")
-    ).add_to(m)
-
-# --- Display map and capture clicks ---
-map_data = st_folium(m, width=700, height=500)
-
-# --- Update session state if clicked ---
-if map_data and map_data.get("last_clicked"):
-    lat = map_data["last_clicked"]["lat"]
-    lon = map_data["last_clicked"]["lng"]
-    st.session_state.clicked_point = (lat, lon)
-    # Determine which area contains the click
-    point = Point(lon, lat)
+# --- Function to find which area contains a point ---
+def find_price_area(lat, lon):
+    point = Point(lon, lat)  # GeoJSON uses (lon, lat)
     for feature in geojson_data["features"]:
         polygon = shape(feature["geometry"])
         if polygon.contains(point):
-            st.session_state.selected_area = feature["properties"].get("ElSpotOmr", "Unknown")
-            break
-    else:
-        st.session_state.selected_area = None
-    st.experimental_rerun()  # rerun to show marker & highlight polygon
+            return feature["properties"].get("ElSpotOmr", "Unknown")
+    return None
+
+# --- Create base Plotly map ---
+fig = px.choropleth_mapbox(
+    geojson=geojson_data,
+    locations=[f["properties"].get("ElSpotOmr", f["id"]) for f in geojson_data["features"]],
+    featureidkey="properties.ElSpotOmr",
+    color=[0]*len(geojson_data["features"]),  # dummy color
+    center={"lat": 63.0, "lon": 10.5},
+    zoom=5.5,
+    mapbox_style="carto-positron",
+)
+
+# --- Highlight selected area ---
+if st.session_state.selected_area:
+    selected_feature = [
+        f for f in geojson_data["features"]
+        if f["properties"].get("ElSpotOmr") == st.session_state.selected_area
+    ][0]
+    fig.add_trace(go.Choroplethmapbox(
+        geojson={"type": "FeatureCollection", "features": [selected_feature]},
+        locations=[st.session_state.selected_area],
+        z=[1],
+        colorscale=[[0, "yellow"], [1, "yellow"]],
+        marker_line_color="red",
+        marker_line_width=3,
+        showscale=False,
+        hoverinfo="skip"
+    ))
+
+# --- Add clicked point marker ---
+if st.session_state.clicked_point:
+    lat, lon = st.session_state.clicked_point
+    fig.add_trace(go.Scattermapbox(
+        lat=[lat],
+        lon=[lon],
+        mode="markers",
+        marker=go.scattermapbox.Marker(size=12, color="red"),
+        name="Clicked Point"
+    ))
+
+# --- Display map and capture clicks ---
+clicked_points = plotly_events(
+    fig,
+    click_event=True,
+    hover_event=False,
+    select_event=False,
+    override_height=600,
+    override_width="100%"
+)
+
+# --- Update session state if clicked ---
+if clicked_points:
+    lat = clicked_points[0]["lat"]
+    lon = clicked_points[0]["lon"]
+    st.session_state.clicked_point = (lat, lon)
+    st.session_state.selected_area = find_price_area(lat, lon)
+    st.experimental_rerun()  # refresh to show marker & highlight
 
 # --- Display info ---
 if st.session_state.clicked_point:

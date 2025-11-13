@@ -9,6 +9,5 @@ openmeteo-requests
 statsmodels
 scipy
 scikit-learn
-folium
-streamlit-folium
 shapely
+streamlit-plotly-events
