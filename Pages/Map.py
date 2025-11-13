@@ -32,23 +32,24 @@ def find_price_area(lat, lon):
 # --- Build the map figure ---
 fig = go.Figure()
 
+# Draw all polygons
 for feature in geojson_data["features"]:
     area_name = feature["properties"].get("ElSpotOmr", "Unknown")
     geom = feature["geometry"]
 
     # Handle Polygon vs MultiPolygon
     if geom["type"] == "Polygon":
-        coords_list = geom["coordinates"][0]  # first linear ring
+        coords_list = geom["coordinates"][0]
         polygons = [coords_list]
     elif geom["type"] == "MultiPolygon":
-        polygons = [poly[0] for poly in geom["coordinates"]]  # first ring of each polygon
+        polygons = [poly[0] for poly in geom["coordinates"]]
     else:
         continue
 
     for coords in polygons:
         lons, lats = zip(*coords)
         is_selected = (st.session_state.selected_area == area_name)
-        fig.add_trace(go.Scattermapbox(
+        fig.add_trace(go.Scattermap(
             lon=lons,
             lat=lats,
             mode="lines",
@@ -64,7 +65,7 @@ for feature in geojson_data["features"]:
 # Add clicked point marker
 if st.session_state.clicked_point:
     lat, lon = st.session_state.clicked_point
-    fig.add_trace(go.Scattermapbox(
+    fig.add_trace(go.Scattermap(
         lon=[lon],
         lat=[lat],
         mode="markers",
@@ -90,14 +91,13 @@ clicked_points = plotly_events(
     override_width="100%"
 )
 
-# Update session state if clicked
+# Update session state if clicked without rerun
 if clicked_points:
     lat = clicked_points[0].get("lat")
     lon = clicked_points[0].get("lon")
     if lat is not None and lon is not None:
         st.session_state.clicked_point = (lat, lon)
         st.session_state.selected_area = find_price_area(lat, lon)
-        st.experimental_rerun()  # refresh map to show marker & highlight
 
 # --- Display info ---
 if st.session_state.clicked_point:
@@ -106,3 +106,6 @@ if st.session_state.clicked_point:
         st.write("Price area selected:", st.session_state.selected_area)
     else:
         st.write("No Price area at this point.")
+
+# --- Display the map ---
+st.plotly_chart(fig, use_container_width=True)
