@@ -1,7 +1,6 @@
 import streamlit as st
 import json
-from shapely.geometry import shape, Point
-import plotly.express as px
+from shapely.geometry import shape, Point, Polygon, MultiPolygon
 import plotly.graph_objects as go
 from streamlit_plotly_events import plotly_events
 
@@ -23,51 +22,69 @@ if "selected_area" not in st.session_state:
 
 # --- Function to find which area contains a point ---
 def find_price_area(lat, lon):
-    point = Point(lon, lat)  # GeoJSON uses (lon, lat)
+    point = Point(lon, lat)
     for feature in geojson_data["features"]:
-        polygon = shape(feature["geometry"])
-        if polygon.contains(point):
-            return feature["properties"].get("ElSpotOmr", "Unknown")
+        geom = feature["geometry"]
+        if geom["type"] == "Polygon":
+            polygon = shape(geom)
+            if polygon.contains(point):
+                return feature["properties"].get("ElSpotOmr", "Unknown")
+        elif geom["type"] == "MultiPolygon":
+            multipolygon = shape(geom)
+            if multipolygon.contains(point):
+                return feature["properties"].get("ElSpotOmr", "Unknown")
     return None
 
-# --- Create base Plotly map ---
-fig = px.choropleth_mapbox(
-    geojson=geojson_data,
-    locations=[f["properties"].get("ElSpotOmr", f["id"]) for f in geojson_data["features"]],
-    featureidkey="properties.ElSpotOmr",
-    color=[0]*len(geojson_data["features"]),  # dummy color
-    center={"lat": 63.0, "lon": 10.5},
-    zoom=5.5,
-    mapbox_style="carto-positron",
-)
+# --- Create Plotly figure ---
+fig = go.Figure()
 
-# --- Highlight selected area ---
-if st.session_state.selected_area:
-    selected_feature = [
-        f for f in geojson_data["features"]
-        if f["properties"].get("ElSpotOmr") == st.session_state.selected_area
-    ][0]
-    fig.add_trace(go.Choroplethmapbox(
-        geojson={"type": "FeatureCollection", "features": [selected_feature]},
-        locations=[st.session_state.selected_area],
-        z=[1],
-        colorscale=[[0, "yellow"], [1, "yellow"]],
-        marker_line_color="red",
-        marker_line_width=3,
-        showscale=False,
-        hoverinfo="skip"
-    ))
+# Draw all polygons
+for feature in geojson_data["features"]:
+    area_name = feature["properties"].get("ElSpotOmr", "Unknown")
+    geom = feature["geometry"]
 
-# --- Add clicked point marker ---
+    # Handle both Polygon and MultiPolygon
+    polygons = [geom["coordinates"]] if geom["type"] == "Polygon" else geom["coordinates"]
+
+    for poly in polygons:
+        for coords in poly:
+            lons, lats = zip(*coords)
+            # Highlight selected area
+            line_color = "red" if st.session_state.selected_area == area_name else "blue"
+            fill_color = "yellow" if st.session_state.selected_area == area_name else "rgba(0,0,255,0.1)"
+            fig.add_trace(go.Scattermapbox(
+                lon=lons,
+                lat=lats,
+                mode="lines",
+                fill="toself",
+                fillcolor=fill_color,
+                line=dict(color=line_color, width=2),
+                name=area_name,
+                hoverinfo="text",
+                text=f"Price area: {area_name}"
+            ))
+
+# Add clicked point marker
 if st.session_state.clicked_point:
     lat, lon = st.session_state.clicked_point
     fig.add_trace(go.Scattermapbox(
         lat=[lat],
         lon=[lon],
         mode="markers",
-        marker=go.scattermapbox.Marker(size=12, color="red"),
+        marker=dict(size=12, color="red"),
         name="Clicked Point"
     ))
+
+# Set map layout
+fig.update_layout(
+    mapbox=dict(
+        style="carto-positron",
+        center=dict(lat=63, lon=10.5),
+        zoom=5.5
+    ),
+    margin={"r":0,"t":0,"l":0,"b":0},
+    showlegend=False
+)
 
 # --- Display map and capture clicks ---
 clicked_points = plotly_events(
@@ -85,7 +102,7 @@ if clicked_points:
     lon = clicked_points[0]["lon"]
     st.session_state.clicked_point = (lat, lon)
     st.session_state.selected_area = find_price_area(lat, lon)
-    st.experimental_rerun()  # refresh to show marker & highlight
+    st.experimental_rerun()  # refresh to show marker & highlighted polygon
 
 # --- Display info ---
 if st.session_state.clicked_point:
