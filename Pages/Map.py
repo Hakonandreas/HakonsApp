@@ -68,15 +68,3 @@ if st.session_state.clicked_point:
         st.write("No Price area at this point.")
 
 
-import json
-from pathlib import Path
-
-geojson_path = Path(__file__).parent / "data" / "ElSpot_omraade.geojson"
-with open(geojson_path, "r", encoding="utf-8") as f:
-    geojson_data = json.load(f)
-
-areas = set()
-for feature in geojson_data["features"]:
-    areas.add(feature["properties"].get("ElSpotOmr", "Unknown"))
-
-print(areas)
