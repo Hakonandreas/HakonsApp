@@ -6,7 +6,6 @@ for a selected year range and coordinates.
 
 import pandas as pd
 import plotly.graph_objects as go
-from functions.Snow_drift import compute_yearly_results, compute_average_sector
 
 # ---------------- Plotly wind rose ----------------
 def plot_rose_plotly(avg_sector_values, overall_avg):
@@ -44,6 +43,9 @@ def plot_rose_plotly(avg_sector_values, overall_avg):
 
 # ---------------- Main function ----------------
 def main():
+    # Import functions inside the function to avoid circular import
+    from functions.Snow_drift import compute_yearly_results, compute_average_sector
+
     # Check if coordinates are selected
     coordinates_selected = False  # <-- replace with actual map selection logic
     if not coordinates_selected:
