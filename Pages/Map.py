@@ -1,10 +1,10 @@
 import streamlit as st
 import json
-from shapely.geometry import shape, Point, Polygon, MultiPolygon
+from shapely.geometry import shape, Point
 import plotly.graph_objects as go
 from streamlit_plotly_events import plotly_events
 
-# --- Load GeoJSON with cache ---
+# --- Load GeoJSON ---
 @st.cache_data
 def load_geojson():
     with open('data/ElSpot_omraade.geojson', "r", encoding="utf-8") as f:
@@ -14,80 +14,67 @@ geojson_data = load_geojson()
 
 st.title("Norway Price Areas Map (NO1-NO5)")
 
-# --- Initialize session state ---
+# --- Session state ---
 if "clicked_point" not in st.session_state:
     st.session_state.clicked_point = None
 if "selected_area" not in st.session_state:
     st.session_state.selected_area = None
 
-# --- Function to find which area contains a point ---
+# --- Function to find which Price Area contains a point ---
 def find_price_area(lat, lon):
-    point = Point(lon, lat)
+    point = Point(lon, lat)  # GeoJSON uses (lon, lat)
     for feature in geojson_data["features"]:
-        geom = feature["geometry"]
-        if geom["type"] == "Polygon":
-            polygon = shape(geom)
-            if polygon.contains(point):
-                return feature["properties"].get("ElSpotOmr", "Unknown")
-        elif geom["type"] == "MultiPolygon":
-            multipolygon = shape(geom)
-            if multipolygon.contains(point):
-                return feature["properties"].get("ElSpotOmr", "Unknown")
+        polygon = shape(feature["geometry"])
+        if polygon.contains(point):
+            return feature["properties"].get("ElSpotOmr", "Unknown")
     return None
 
-# --- Create Plotly figure ---
+# --- Build the map figure ---
 fig = go.Figure()
 
-# Draw all polygons
+# Draw polygons
 for feature in geojson_data["features"]:
     area_name = feature["properties"].get("ElSpotOmr", "Unknown")
     geom = feature["geometry"]
+    coords_list = geom["coordinates"] if geom["type"] == "Polygon" else [c for c in geom["coordinates"]]
+    
+    for coords in coords_list:
+        lons, lats = zip(*coords[0] if geom["type"] == "MultiPolygon" else coords)
+        is_selected = (st.session_state.selected_area == area_name)
+        fig.add_trace(go.Scattermap(
+            lon=lons,
+            lat=lats,
+            mode="lines",
+            fill="toself",
+            fillcolor="yellow" if is_selected else "rgba(0,0,255,0.1)",
+            line=dict(color="red" if is_selected else "blue", width=2),
+            hoverinfo="text",
+            text=f"Price area: {area_name}",
+            name=area_name,
+            showlegend=False
+        ))
 
-    # Handle both Polygon and MultiPolygon
-    polygons = [geom["coordinates"]] if geom["type"] == "Polygon" else geom["coordinates"]
-
-    for poly in polygons:
-        for coords in poly:
-            lons, lats = zip(*coords)
-            # Highlight selected area
-            line_color = "red" if st.session_state.selected_area == area_name else "blue"
-            fill_color = "yellow" if st.session_state.selected_area == area_name else "rgba(0,0,255,0.1)"
-            fig.add_trace(go.Scattermapbox(
-                lon=lons,
-                lat=lats,
-                mode="lines",
-                fill="toself",
-                fillcolor=fill_color,
-                line=dict(color=line_color, width=2),
-                name=area_name,
-                hoverinfo="text",
-                text=f"Price area: {area_name}"
-            ))
-
-# Add clicked point marker
+# Add marker for clicked point
 if st.session_state.clicked_point:
     lat, lon = st.session_state.clicked_point
-    fig.add_trace(go.Scattermapbox(
-        lat=[lat],
+    fig.add_trace(go.Scattermap(
         lon=[lon],
+        lat=[lat],
         mode="markers",
         marker=dict(size=12, color="red"),
-        name="Clicked Point"
+        name="Clicked Point",
+        showlegend=False
     ))
 
-# Set map layout
+# Map layout
 fig.update_layout(
-    mapbox=dict(
-        style="carto-positron",
-        center=dict(lat=63, lon=10.5),
-        zoom=5.5
-    ),
-    margin={"r":0,"t":0,"l":0,"b":0},
-    showlegend=False
+    mapbox_style="open-street-map",
+    mapbox=dict(center=dict(lat=63, lon=10.5), zoom=5.5),
+    margin={"r":0,"t":0,"l":0,"b":0}
 )
 
-# --- Display map and capture clicks ---
-clicked_points = plotly_events(
+# --- Capture clicks ---
+clicked = plotly_events(
     fig,
     click_event=True,
     hover_event=False,
@@ -96,13 +83,16 @@ clicked_points = plotly_events(
     override_width="100%"
 )
 
-# --- Update session state if clicked ---
-if clicked_points:
-    lat = clicked_points[0]["lat"]
-    lon = clicked_points[0]["lon"]
-    st.session_state.clicked_point = (lat, lon)
-    st.session_state.selected_area = find_price_area(lat, lon)
-    st.experimental_rerun()  # refresh to show marker & highlighted polygon
+# Update session state if clicked
+if clicked:
+    click_data = clicked[0]
+    # Scattermap returns lat/lon in 'y' and 'x' for plotly_events
+    lat = click_data.get("y")
+    lon = click_data.get("x")
+    if lat is not None and lon is not None:
+        st.session_state.clicked_point = (lat, lon)
+        st.session_state.selected_area = find_price_area(lat, lon)
+        st.experimental_rerun()  # refresh map with marker & highlight
 
 # --- Display info ---
 if st.session_state.clicked_point:
