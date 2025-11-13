@@ -5,7 +5,7 @@ for a selected year range and coordinates.
 
 import pandas as pd
 import plotly.graph_objects as go
-from snow_drift import compute_yearly_results, compute_average_sector
+from function.Snow_drift import compute_yearly_results, compute_average_sector
 
 # ---------------- Plotly wind rose ----------------
 def plot_rose_plotly(avg_sector_values, overall_avg):
