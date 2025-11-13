@@ -32,16 +32,17 @@ def find_price_area(lat, lon):
 # --- Build the map figure ---
 fig = go.Figure()
 
-# Draw polygons
+# Draw all polygons
 for feature in geojson_data["features"]:
     area_name = feature["properties"].get("ElSpotOmr", "Unknown")
     geom = feature["geometry"]
-    coords_list = geom["coordinates"] if geom["type"] == "Polygon" else [c for c in geom["coordinates"]]
-    
-    for coords in coords_list:
-        lons, lats = zip(*coords[0] if geom["type"] == "MultiPolygon" else coords)
+    polygons = [geom["coordinates"]] if geom["type"] == "Polygon" else geom["coordinates"]
+
+    for poly in polygons:
+        coords = poly[0] if geom["type"] == "MultiPolygon" else poly
+        lons, lats = zip(*coords)
         is_selected = (st.session_state.selected_area == area_name)
-        fig.add_trace(go.Scattermap(
+        fig.add_trace(go.Scattermapbox(
             lon=lons,
             lat=lats,
             mode="lines",
@@ -54,10 +55,10 @@ for feature in geojson_data["features"]:
             showlegend=False
         ))
 
-# Add marker for clicked point
+# Add clicked point marker
 if st.session_state.clicked_point:
     lat, lon = st.session_state.clicked_point
-    fig.add_trace(go.Scattermap(
+    fig.add_trace(go.Scattermapbox(
         lon=[lon],
         lat=[lat],
         mode="markers",
@@ -65,6 +66,16 @@ if st.session_state.clicked_point:
         name="Clicked Point",
         showlegend=False
     ))
+
+# Add transparent scatter layer to capture clicks
+fig.add_trace(go.Scattermapbox(
+    lon=[10.5],  # dummy
+    lat=[63.0],
+    mode="markers",
+    marker=dict(size=1, color="rgba(0,0,0,0)"),
+    name="click_layer",
+    showlegend=False
+))
 
 # Map layout
 fig.update_layout(
@@ -74,7 +85,7 @@ fig.update_layout(
 )
 
 # --- Capture clicks ---
-clicked = plotly_events(
+clicked_points = plotly_events(
     fig,
     click_event=True,
     hover_event=False,
@@ -84,15 +95,14 @@ clicked = plotly_events(
 )
 
 # Update session state if clicked
-if clicked:
-    click_data = clicked[0]
-    # Scattermap returns lat/lon in 'y' and 'x' for plotly_events
-    lat = click_data.get("y")
-    lon = click_data.get("x")
+if clicked_points:
+    # Scattermapbox click returns lat/lon
+    lat = clicked_points[0].get("lat")
+    lon = clicked_points[0].get("lon")
     if lat is not None and lon is not None:
         st.session_state.clicked_point = (lat, lon)
         st.session_state.selected_area = find_price_area(lat, lon)
-        st.experimental_rerun()  # refresh map with marker & highlight
+        st.experimental_rerun()  # refresh map to show marker & highlight
 
 # --- Display info ---
 if st.session_state.clicked_point:
