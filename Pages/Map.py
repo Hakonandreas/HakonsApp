@@ -17,21 +17,10 @@ if "clicked_point" not in st.session_state:
 if "selected_area" not in st.session_state:
     st.session_state.selected_area = None
 
-# --- Function to detect which area a point belongs to ---
-def handle_click(lat, lon):
-    st.session_state.clicked_point = (lat, lon)
-    point = Point(lon, lat)
-    for feature in geojson_data["features"]:
-        polygon = shape(feature["geometry"])
-        if polygon.contains(point):
-            st.session_state.selected_area = feature["properties"].get("ElSpotOmr", "Unknown")
-            return
-    st.session_state.selected_area = None
-
-# --- Folium map ---
+# --- Create Folium map ---
 m = folium.Map(location=[63.0, 10.5], zoom_start=5.5)
 
-# --- Add GeoJSON with dynamic styling ---
+# --- Style function for GeoJSON ---
 def style_function(feature):
     area_name = feature["properties"].get("ElSpotOmr", "Unknown")
     if st.session_state.selected_area == area_name:
@@ -47,24 +36,33 @@ folium.GeoJson(
     )
 ).add_to(m)
 
-# --- Add clicked marker if available ---
+# --- Add marker for clicked point if exists ---
 if st.session_state.clicked_point:
     folium.Marker(
         location=st.session_state.clicked_point,
         icon=folium.Icon(color="red", icon="info-sign")
     ).add_to(m)
 
-# --- Display map and capture click ---
-map_data = st_folium(m, width=700, height=500, returned_objects=[])
+# --- Display map and capture clicks ---
+map_data = st_folium(m, width=700, height=500)
 
-# --- Process click ---
+# --- Update session state if clicked ---
 if map_data and map_data.get("last_clicked"):
     lat = map_data["last_clicked"]["lat"]
     lon = map_data["last_clicked"]["lng"]
-    handle_click(lat, lon)
-    st.experimental_rerun()  # rerun to update map with marker & highlighted polygon
+    st.session_state.clicked_point = (lat, lon)
+    # Determine which area contains the click
+    point = Point(lon, lat)
+    for feature in geojson_data["features"]:
+        polygon = shape(feature["geometry"])
+        if polygon.contains(point):
+            st.session_state.selected_area = feature["properties"].get("ElSpotOmr", "Unknown")
+            break
+    else:
+        st.session_state.selected_area = None
+    st.experimental_rerun()  # rerun to show marker & highlight polygon
 
-# --- Display clicked info ---
+# --- Display info ---
 if st.session_state.clicked_point:
     st.write("Clicked coordinates:", st.session_state.clicked_point)
     if st.session_state.selected_area:
