@@ -2,7 +2,7 @@ import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 from windrose import WindroseAxes
-from functions import get_city_from_area, download_era5_data
+from functions.wheather_utils import get_city_from_area, download_era5_data
 
 # ---- Snowdrift formulas copied from Snow_drift.py ----
 
