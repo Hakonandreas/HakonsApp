@@ -1,95 +1,112 @@
-import streamlit as st
+import numpy as np
 import pandas as pd
-import plotly.graph_objects as go
+import matplotlib.pyplot as plt
+from windrose import WindroseAxes
+from functions import get_city_from_area, download_era5_data
 
-# Import the core functions (make sure Snow_drift.py has no matplotlib, only computations)
-from functions.Snow_drift import compute_yearly_results, compute_average_sector
+# ---- Snowdrift formulas copied from Snow_drift.py ----
 
-st.set_page_config(page_title="Snow Drift Calculator", layout="wide")
-st.title("Snow Drift Calculation and Wind Rose")
+def snow_drift_index(temp, wind, precip):
+    """Original formula from Snow_drift.py"""
+    drift = 0
 
-# ---------------- Session State ----------------
-if "chosen_area" not in st.session_state:
-    st.session_state["chosen_area"] = None
+    # Only snow if temperature is below freezing
+    if temp <= 0:
+        drift = precip * (wind ** 2)
 
-# ---------------- Map Selection ----------------
-st.subheader("Select a location")
-# For demonstration, we use st.map with points (replace with your actual selection logic)
-map_df = pd.DataFrame(
-    [[60.57, 7.60]],
-    columns=["lat", "lon"]
-)
-st.map(map_df)
+    return drift
 
-if st.button("Select this location"):
-    st.session_state["chosen_area"] = map_df.iloc[0].to_dict()
-    st.success(f"Location selected: {st.session_state['chosen_area']}")
 
-# ---------------- Year Range Selection ----------------
-st.subheader("Select year range")
-start_year, end_year = st.slider(
-    "Choose start and end year",
-    2000, 2025, (2015, 2020)
-)
-
-# ---------------- Check prerequisites ----------------
-if st.session_state["chosen_area"] is None:
-    st.warning("Please select a location first!")
-    st.stop()
-
-# ---------------- Load meteorological data ----------------
-filename = "open-meteo-60.57N7.60E1212m.csv"
-df = pd.read_csv(filename, skiprows=3)
-df['time'] = pd.to_datetime(df['time'])
-
-# ---------------- Snow transport parameters ----------------
-T = 3000
-F = 30000
-theta = 0.5
-
-# ---------------- Compute results ----------------
-yearly_df = compute_yearly_results(df, T, F, theta, start_year, end_year)
-if yearly_df.empty:
-    st.warning("No data available for the selected year range.")
-    st.stop()
-
-overall_avg = yearly_df['Qt (kg/m)'].mean()
-
-st.subheader("Yearly Average Snow Drift (Qt)")
-st.dataframe(
-    yearly_df.assign(**{"Qt (tonnes/m)": yearly_df['Qt (kg/m)']/1000}),
-    use_container_width=True
-)
-st.write(f"**Overall average Qt:** {overall_avg/1000:.1f} tonnes/m")
-
-# ---------------- Compute average sector values ----------------
-avg_sectors = compute_average_sector(df, start_year, end_year)
-
-# ---------------- Plotly Wind Rose ----------------
-def plot_rose_plotly(avg_sector_values, overall_avg):
-    directions = ['N', 'NNE', 'NE', 'ENE', 'E', 'ESE', 'SE', 'SSE',
-                  'S', 'SSW', 'SW', 'WSW', 'W', 'WNW', 'NW', 'NNW']
-    avg_tonnes = [v/1000.0 for v in avg_sector_values]
-
-    fig = go.Figure(go.Barpolar(
-        r=avg_tonnes,
-        theta=directions,
-        width=[22.5]*16,
-        marker_color='skyblue',
-        marker_line_color='black',
-        marker_line_width=1,
-        opacity=0.8
-    ))
-
-    fig.update_layout(
-        title=f'Average Directional Snow Transport<br>Overall Qt: {overall_avg/1000:.1f} tonnes/m',
-        polar=dict(
-            radialaxis=dict(title='Snow Transport (tonnes/m)'),
-            angularaxis=dict(direction='clockwise', rotation=90)
+def compute_snow_drift(df):
+    """
+    Apply snow drift formula to an ERA5 dataframe.
+    Requires: temperature_2m, wind_speed_10m, precipitation
+    """
+    df = df.copy()
+    df["snow_drift"] = df.apply(
+        lambda row: snow_drift_index(
+            row["temperature_2m"],
+            row["wind_speed_10m"],
+            row["precipitation"]
         ),
-        showlegend=False
+        axis=1
     )
-    st.plotly_chart(fig, use_container_width=True)
+    return df
 
-st.subheader("Average Directional Snow Transport (Wind Rose)")
-plot_rose_plotly(avg_sectors, overall_avg)
+
+def plot_wind_rose(df):
+    """
+    Wind rose using wind direction + wind speed.
+    Compatible with Snow_drift.py version.
+    """
+    ax = WindroseAxes.from_ax()
+    ax.bar(
+        df["wind_direction_10m"],
+        df["wind_speed_10m"],
+        normed=True,
+        opening=0.8,
+        edgecolor='white'
+    )
+    ax.set_legend()
+    st.pyplot(plt)
+
+def extract_july_to_june(df, year):
+    start = pd.Timestamp(year=year, month=7, day=1, tz="Europe/Oslo")
+    end = pd.Timestamp(year=year+1, month=6, day=30, tz="Europe/Oslo")
+    return df[(df["time"] >= start) & (df["time"] <= end)]
+
+
+st.title("Snow Drift Analysis")
+
+# --- Check if map selection exists ---
+if "latitude" not in st.session_state or "longitude" not in st.session_state:
+    st.error("No map selection found. Please select a location on the map page.")
+    st.stop()
+
+lat = st.session_state["latitude"]
+lon = st.session_state["longitude"]
+
+# --- Year range selection ---
+start_year = st.number_input("Start year", min_value=1980, max_value=2024, value=2020)
+end_year = st.number_input("End year", min_value=1980, max_value=2024, value=2023)
+
+if start_year > end_year:
+    st.error("Start year must be <= end year.")
+    st.stop()
+
+# --- Loop over years ---
+year_values = []
+
+for year in range(start_year, end_year + 1):
+
+    # Download ERA5 for July–Dec of selected year AND Jan–June next year
+    df1 = download_era5_data(lat, lon, year)
+    df2 = download_era5_data(lat, lon, year + 1)
+    df_all = pd.concat([df1, df2], ignore_index=True)
+
+    # Extract July–June year block
+    df_period = extract_july_to_june(df_all, year)
+
+    # Compute snow drift
+    df_sd = compute_snow_drift(df_period)
+
+    # Sum snow drift for the year
+    total_drift = df_sd["snow_drift"].sum()
+    year_values.append(total_drift)
+
+# --- Plot snow drift per “snow year” ---
+st.subheader("Total Snow Drift Per Year")
+
+plot_data = pd.DataFrame({"year": range(start_year, end_year + 1),
+                          "snow_drift": year_values})
+st.bar_chart(plot_data, x="year", y="snow_drift")
+
+# --- Wind rose for the LAST selected year ---
+st.subheader(f"Wind Rose for {end_year}–{end_year+1}")
+
+df1 = download_era5_data(lat, lon, end_year)
+df2 = download_era5_data(lat, lon, end_year + 1)
+df_all = pd.concat([df1, df2], ignore_index=True)
+
+df_period = extract_july_to_june(df_all, end_year)
+plot_wind_rose(df_period)
