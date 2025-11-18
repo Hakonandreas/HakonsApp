@@ -29,10 +29,18 @@ with tab_spc:
 
     # UI controls
     cutoff_frac = st.slider("DCT frequency cut-off fraction", 0.001, 0.05, 0.01, step=0.001)
-    n_std = st.slider("Number of standard deviations", 1.0, 6.0, 3.0, step=0.5)
+    n_mad = st.slider("Number of MAD deviations", 1.0, 10.0, 3.0, step=0.5)
+
+    # ---- 1) NaN HANDLING BEFORE DCT (REQUIRED FIX) ----
+    if df["temperature_2m"].isna().any():
+        st.warning("NaNs detected — applying linear interpolation before DCT.")
+        df["temperature_2m"] = df["temperature_2m"].interpolate()
+    # ----------------------------------------------------
 
     # Run analysis
     temp = df["temperature_2m"].values
+
+    # DCT smoothing
     temp_dct = dct(temp, norm='ortho')
     cutoff = int(len(temp) * cutoff_frac)
 
@@ -44,19 +52,22 @@ with tab_spc:
     df["SATV"] = satv
     df["Trend"] = trend
 
-    # --- Changed from MAD to standard deviation ---
-    mean_satv = np.mean(satv)
-    std_satv = np.std(satv)
-    ucl = mean_satv + n_std * std_satv
-    lcl = mean_satv - n_std * std_satv
-    # ------------------------------------------------
+    # ---- 2) MAD WITH CORRECT SCALING 1.4826 (REQUIRED FIX) ----
+    median_satv = np.median(satv)
+    mad = np.median(np.abs(satv - median_satv))
+    mad_scaled = 1.4826 * mad     # Correct robust estimator
+    ucl_satv = median_satv + n_mad * mad_scaled
+    lcl_satv = median_satv - n_mad * mad_scaled
+    # ------------------------------------------------------------
 
-    df["UCL"] = df["Trend"] + ucl
-    df["LCL"] = df["Trend"] + lcl
+    df["UCL"] = df["Trend"] + ucl_satv
+    df["LCL"] = df["Trend"] + lcl_satv
+
+    # Determine outliers
     df["outlier"] = (df["temperature_2m"] > df["UCL"]) | (df["temperature_2m"] < df["LCL"])
     outliers = df[df["outlier"]]
 
-    # Plot
+    # Plotting
     fig = px.line(df, x="time", y="temperature_2m",
                   title=f"Temperature — SPC Outlier Detection ({city}, {year})",
                   labels={"temperature_2m": "Temperature (°C)"})
@@ -71,9 +82,18 @@ with tab_spc:
 
     st.plotly_chart(fig, use_container_width=True)
 
+    # ---- 3) IMPROVED SUMMARY: COUNTS + PERCENTAGES (REQUIRED FIX) ----
+    total_n = len(df)
+    outlier_n = len(outliers)
+    pct_outliers = (outlier_n / total_n) * 100
+
     st.markdown("### Outlier Summary")
-    st.markdown(f"**Number of outliers:** {len(outliers)}")
+    st.markdown(f"- **Total observations:** {total_n}")
+    st.markdown(f"- **Outliers detected:** {outlier_n} ({pct_outliers:.2f}%)")
+    # -------------------------------------------------------------------
+
     st.dataframe(outliers[["time", "temperature_2m", "SATV", "UCL", "LCL"]].head(10))
+
 
 
 # ANOMALY / LOF TAB
