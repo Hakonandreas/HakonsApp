@@ -31,11 +31,11 @@ with tab_spc:
     cutoff_frac = st.slider("DCT frequency cut-off fraction", 0.001, 0.05, 0.01, step=0.001)
     n_mad = st.slider("Number of MAD deviations", 1.0, 10.0, 3.0, step=0.5)
 
-    # ---- 1) NaN HANDLING BEFORE DCT (REQUIRED FIX) ----
+    # NaN HANDLING BEFORE DCT (REQUIRED FIX)
     if df["temperature_2m"].isna().any():
         st.warning("NaNs detected — applying linear interpolation before DCT.")
         df["temperature_2m"] = df["temperature_2m"].interpolate()
-    # ----------------------------------------------------
+
 
     # Run analysis
     temp = df["temperature_2m"].values
@@ -52,13 +52,12 @@ with tab_spc:
     df["SATV"] = satv
     df["Trend"] = trend
 
-    # ---- 2) MAD WITH CORRECT SCALING 1.4826 (REQUIRED FIX) ----
+    # MAD WITH CORRECT SCALING 1.4826 (REQUIRED FIX)
     median_satv = np.median(satv)
     mad = np.median(np.abs(satv - median_satv))
     mad_scaled = 1.4826 * mad     # Correct robust estimator
     ucl_satv = median_satv + n_mad * mad_scaled
     lcl_satv = median_satv - n_mad * mad_scaled
-    # ------------------------------------------------------------
 
     df["UCL"] = df["Trend"] + ucl_satv
     df["LCL"] = df["Trend"] + lcl_satv
@@ -82,7 +81,7 @@ with tab_spc:
 
     st.plotly_chart(fig, use_container_width=True)
 
-    # ---- 3) IMPROVED SUMMARY: COUNTS + PERCENTAGES (REQUIRED FIX) ----
+    # IMPROVED SUMMARY: COUNTS + PERCENTAGES (REQUIRED FIX)
     total_n = len(df)
     outlier_n = len(outliers)
     pct_outliers = (outlier_n / total_n) * 100
