@@ -8,7 +8,7 @@ import pandas as pd
 import numpy as np
 from datetime import timedelta
 
-from functions.weather_utils import download_era5_data   # <-- IMPORT YOUR FUNCTION HERE
+from functions.weather_utils import download_era5_data 
 
 st.title("Norway Price Areas Map (NO1–NO5)")
 

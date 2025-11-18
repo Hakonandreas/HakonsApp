@@ -5,7 +5,7 @@ from functions.elhub_utils import load_elhub_data
 
 st.title("Elhub Production Overview")
 
-df = load_elhub_data()
+df, _ = load_elhub_data()
 st.success("✅ Elhub production data loaded successfully!")
 
 # Split the layout into two columns

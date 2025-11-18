@@ -7,7 +7,7 @@ import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 from functions.elhub_utils import load_elhub_data
 
-df = load_elhub_data()
+df, _ = load_elhub_data()
 
 # Use the chosen area from session_state
 pricearea = st.session_state["chosen_area"]

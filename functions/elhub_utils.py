@@ -19,22 +19,33 @@ def get_mongo_client():
     return client
 
 
-# Load Elhub data
 @st.cache_data
 def load_elhub_data():
-    """Load and preprocess Elhub production data."""
+    """Load and preprocess Elhub production and consumption data."""
     client = get_mongo_client()
     db = client.elhub_db
-    collection = db.production
 
-    data = list(collection.find())
-    df = pd.DataFrame(data)
+    # Collections
+    prod_collection = db.production
+    cons_collection = db.consumption
 
-    if df.empty:
-        raise ValueError("No data found in the MongoDB 'production' collection.")
+    # Load production
+    prod_data = list(prod_collection.find())
+    prod_df = pd.DataFrame(prod_data)
+    if prod_df.empty:
+        raise ValueError("No data found in the 'production' collection.")
+    prod_df["starttime"] = pd.to_datetime(prod_df["starttime"])
+    prod_df["month"] = prod_df["starttime"].dt.strftime("%Y-%m")
+    prod_df["date"] = prod_df["starttime"].dt.date
 
-    df["starttime"] = pd.to_datetime(df["starttime"])
-    df["month"] = df["starttime"].dt.strftime("%Y-%m")
-    df["date"] = df["starttime"].dt.date
+    # Load consumption
+    cons_data = list(cons_collection.find())
+    cons_df = pd.DataFrame(cons_data)
+    if cons_df.empty:
+        raise ValueError("No data found in the 'consumption' collection.")
+    cons_df["starttime"] = pd.to_datetime(cons_df["starttime"])
+    cons_df["month"] = cons_df["starttime"].dt.strftime("%Y-%m")
+    cons_df["date"] = cons_df["starttime"].dt.date
 
-    return df
+    return prod_df, cons_df
+
