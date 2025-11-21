@@ -21,13 +21,12 @@ def get_mongo_client():
 
 @st.cache_data
 def load_elhub_data():
-    """Load and preprocess Elhub production and consumption data."""
+    """Load and preprocess Elhub production data."""
     client = get_mongo_client()
     db = client.elhub_db
 
     # Collections
     prod_collection = db.production
-    cons_collection = db.consumption
 
     # Load production
     prod_data = list(prod_collection.find())
@@ -38,6 +37,17 @@ def load_elhub_data():
     prod_df["month"] = prod_df["starttime"].dt.strftime("%Y-%m")
     prod_df["date"] = prod_df["starttime"].dt.date
         
+    return prod_df
+
+@st.cache_data
+def load_elhub_consumption():
+    """Load and preprocess Elhub consumption data."""
+    client = get_mongo_client()
+    db = client.elhub_db
+
+    # Collection
+    cons_collection = db.consumption
+
     # Load consumption
     cons_data = list(cons_collection.find())
     cons_df = pd.DataFrame(cons_data)
@@ -46,6 +56,5 @@ def load_elhub_data():
     cons_df["starttime"] = pd.to_datetime(cons_df["starttime"])
     cons_df["month"] = cons_df["starttime"].dt.strftime("%Y-%m")
     cons_df["date"] = cons_df["starttime"].dt.date
-        
-    return prod_df, cons_df
 
+    return cons_df

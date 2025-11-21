@@ -2,7 +2,7 @@ import streamlit as st
 import pandas as pd
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
-from functions.elhub_utils import load_elhub_data
+from functions.elhub_utils import load_elhub_data, load_elhub_consumption
 from functions.weather_utils import download_era5_data
 
 # ---------------------------------------------------------
@@ -27,7 +27,8 @@ Explore relationships between **meteorological conditions** and
 """)
 
 # Load data
-prod_df, cons_df = load_elhub_data()
+prod_df = load_elhub_data()
+cons_df = load_elhub_consumption
 weather_df = download_era5_data()
 
 # Merge on date
