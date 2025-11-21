@@ -1,103 +1,53 @@
-import numpy as np
+import streamlit as st
 import pandas as pd
 import matplotlib.pyplot as plt
-from functions.weather_utils import download_era5_data
+from functions.Snow_drift import calculate_snow_drift, plot_wind_rose
 
+st.title("❄️ Snow Drift Explorer")
 
-# --- Tabler (2003) components ---
+# Debug view (optional; comment out if noisy)
+st.write("Clicked point:", st.session_state.get("clicked_point"))
 
-def compute_Qupot(hourly_wind_speeds, dt=3600):
-    """Potential wind-driven transport (Qupot) [kg/m] via u^3.8."""
-    return sum((u ** 3.8) * dt for u in hourly_wind_speeds) / 233847
+# Guard: require coordinates selected on the map page
+if "clicked_point" not in st.session_state or st.session_state.clicked_point is None:
+    st.warning("No coordinates selected on the map page. Please go back and click a location.")
+    st.stop()
 
+lat, lon = st.session_state.clicked_point
+st.write(f"Using coordinates: {lat:.3f}, {lon:.3f}")
 
-def sector_index(direction):
-    """Map wind direction (deg) to 16-sector index."""
-    return int(((direction + 11.25) % 360) // 22.5)
+# Year range selector (seasonal years)
+start_year, end_year = st.slider(
+    "Select seasonal year range (July–June)",
+    min_value=2000, max_value=2025,
+    value=(2015, 2020)
+)
 
+# Compute seasonal drifts for each year in range
+years = range(start_year, end_year + 1)
+results = []
 
-def compute_sector_transport(hourly_wind_speeds, hourly_wind_dirs, dt=3600):
-    """Cumulative transport per 16 wind sectors (kg/m)."""
-    sectors = [0.0] * 16
-    for u, d in zip(hourly_wind_speeds, hourly_wind_dirs):
-        idx = sector_index(d)
-        sectors[idx] += ((u ** 3.8) * dt) / 233847
-    return sectors
+for y in years:
+    start_date = pd.Timestamp(year=y, month=7, day=1)
+    end_date = pd.Timestamp(year=y+1, month=6, day=30, hour=23, minute=59, second=59)
+    try:
+        drift = calculate_snow_drift(lat, lon, start_date, end_date)
+    except FileNotFoundError as e:
+        st.error(str(e))
+        st.stop()
+    results.append({"year": f"{y}-{y+1}", "snow_drift_kgm": drift})
 
+df = pd.DataFrame(results)
+df["snow_drift_tonnesm"] = df["snow_drift_kgm"] / 1000.0
 
-def compute_snow_transport(T, F, theta, Swe, hourly_wind_speeds, dt=3600):
-    """Tabler components with controlling transport and annual Qt."""
-    Qupot = compute_Qupot(hourly_wind_speeds, dt)
-    Qspot = 0.5 * T * Swe
-    Srwe = theta * Swe
-    if Qupot > Qspot:
-        Qinf = 0.5 * T * Srwe
-    else:
-        Qinf = Qupot
-    Qt = Qinf * (1 - 0.14 ** (F / T))
-    return Qt
+# Plot snow drift per year
+st.write("### Annual snow drift (July–June)")
+st.bar_chart(df.set_index("year")["snow_drift_tonnesm"])
 
-
-# --- Public API ---
-
-def calculate_snow_drift(lat: float, lon: float, start_date: pd.Timestamp, end_date: pd.Timestamp) -> float:
-    """
-    Download ERA5 data for the given coordinates and seasonal year, compute Qt (kg/m).
-    The date range should represent one seasonal year (July 1 to June 30).
-    """
-    years = {start_date.year, end_date.year}
-    dfs = [download_era5_data(lat, lon, y) for y in years]
-    df = pd.concat(dfs).sort_values("time")
-
-    df_period = df[(df["time"] >= start_date) & (df["time"] <= end_date)].copy()
-    if df_period.empty:
-        return float("nan")
-
-    df_period["Swe_hourly"] = df_period.apply(
-        lambda row: row["precipitation"] if row["temperature_2m"] < 1 else 0, axis=1
-    )
-    Swe_total = df_period["Swe_hourly"].sum()
-    wind_speeds = df_period["wind_speed_10m"].tolist()
-
-    T, F, theta = 3000, 30000, 0.5
-    Qt = compute_snow_transport(T, F, theta, Swe_total, wind_speeds)
-    return float(Qt)
-
-
-def plot_wind_rose(lat: float, lon: float, start_year: int, end_year: int):
-    """
-    Download ERA5 data for the given coordinates and year range, plot wind rose.
-    Returns a matplotlib Figure.
-    """
-    dfs = [download_era5_data(lat, lon, y) for y in range(start_year, end_year + 1)]
-    df = pd.concat(dfs).sort_values("time")
-    if df.empty:
-        fig = plt.figure()
-        plt.text(0.5, 0.5, "No data in selected range", ha="center", va="center")
-        plt.axis("off")
-        return fig
-
-    # Compute Swe and sector transports
-    df["Swe_hourly"] = df.apply(
-        lambda row: row["precipitation"] if row["temperature_2m"] < 1 else 0, axis=1
-    )
-    ws = df["wind_speed_10m"].tolist()
-    wdir = df["wind_direction_10m"].tolist()
-    sectors = compute_sector_transport(ws, wdir)
-
-    # Overall Qt average
-    Swe_total = df["Swe_hourly"].sum()
-    Qt = compute_snow_transport(3000, 30000, 0.5, Swe_total, ws)
-
-    # Plot rose
-    fig, ax = plt.subplots(subplot_kw={'projection': 'polar'}, figsize=(8, 8))
-    angles = np.deg2rad(np.arange(0, 360, 360 / 16))
-    ax.bar(angles, np.array(sectors) / 1000.0, width=np.deg2rad(22.5), edgecolor="black")
-    ax.set_theta_zero_location("N")
-    ax.set_theta_direction(-1)
-    directions = ['N','NNE','NE','ENE','E','ESE','SE','SSE',
-                  'S','SSW','SW','WSW','W','WNW','NW','NNW']
-    ax.set_xticks(angles)
-    ax.set_xticklabels(directions)
-    ax.set_title(f"Wind rose {start_year}-{end_year}\nAvg Qt: {Qt/1000:.1f} tonnes/m")
-    return fig
+# Plot wind rose
+st.write("### Wind rose")
+try:
+    fig = plot_wind_rose(lat, lon, start_year, end_year)
+    st.pyplot(fig)
+except FileNotFoundError as e:
+    st.error(str(e))
