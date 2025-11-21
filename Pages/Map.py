@@ -33,11 +33,11 @@ if "area_means" not in st.session_state:
     st.session_state.area_means = None
 
 # ------------------------------------------------------------------------------
-# UI
+# UI – choose Production / Consumption
 # ------------------------------------------------------------------------------
 data_type = st.radio("Select data type:", ["Production", "Consumption"], horizontal=True)
 
-# Load Elhub data
+# Load correct dataset and apply correct group column
 if data_type == "Production":
     df = load_elhub_data()
     group_col = "productiongroup"
@@ -45,14 +45,15 @@ else:
     df = load_elhub_consumption()
     group_col = "consumptionsgroup"
 
-# Dropdown uses the correct group column
+# Group selector
 groups = sorted(df[group_col].dropna().unique().tolist())
 group = st.selectbox("Select group:", groups)
 
+# Time window
 days = st.slider("Time interval (days):", 1, 30, 7)
 
 # ------------------------------------------------------------------------------
-# Prepare time-filtered dataframe
+# Prepare filtered dataframe
 # ------------------------------------------------------------------------------
 df = df.copy()
 df["starttime"] = pd.to_datetime(df["starttime"])
@@ -67,17 +68,18 @@ df_period = df[
 ]
 
 # ------------------------------------------------------------------------------
-# Compute mean per NO area
+# Compute mean per price area (NO1–NO5)
 # ------------------------------------------------------------------------------
+# Use pricearea + quantitykwh (NEW!)
 means = (
-    df_period.groupby("area")["value"]
+    df_period.groupby("pricearea")["quantitykwh"]
     .mean()
     .to_dict()
 )
 
-# Ensure all NO1–NO5 exist
-for feat in geojson_data["features"]:
-    area = feat["properties"]["ElSpotOmr"]
+# Ensure all NO-areas exist even when missing in data
+for feature in geojson_data["features"]:
+    area = feature["properties"]["ElSpotOmr"]
     if area not in means:
         means[area] = np.nan
 
@@ -95,7 +97,7 @@ else:
 
 def get_color(value):
     if pd.isna(value):
-        return "#cccccc"
+        return "#cccccc"   # grey for missing
     if vmin == vmax:
         norm = 0.5
     else:
@@ -106,7 +108,7 @@ def get_color(value):
     return f"#{r:02x}{g:02x}00"
 
 # ------------------------------------------------------------------------------
-# Build map
+# Create the map
 # ------------------------------------------------------------------------------
 m = folium.Map(location=[63.0, 10.5], zoom_start=5.5)
 
@@ -132,10 +134,13 @@ def style_function(feature):
 folium.GeoJson(
     geojson_data,
     style_function=style_function,
-    tooltip=folium.GeoJsonTooltip(fields=["ElSpotOmr"], aliases=["Price area:"])
+    tooltip=folium.GeoJsonTooltip(
+        fields=["ElSpotOmr"],
+        aliases=["Price area:"]
+    )
 ).add_to(m)
 
-# clicked point marker
+# Marker for clicked point
 if st.session_state.clicked_point:
     folium.Marker(
         st.session_state.clicked_point,
@@ -167,7 +172,7 @@ if map_data and map_data.get("last_clicked"):
 # ------------------------------------------------------------------------------
 # Display values
 # ------------------------------------------------------------------------------
-st.write("### Mean values (area → mean value):")
+st.write("### Mean quantity (kWh) per NO area:")
 st.json(means)
 
 if st.session_state.selected_area:
