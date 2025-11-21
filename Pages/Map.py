@@ -74,12 +74,11 @@ df_period = df[
 # ==============================================================================
 # Compute mean per price area
 # ==============================================================================
-means = df_period.groupby("pricearea")["quantitykwh"].mean().reset_index()
+means_df = df_period.groupby("pricearea")["quantitykwh"].mean().reset_index()
+means_dict = dict(zip(means_df["pricearea"], means_df["quantitykwh"]))
+st.session_state.area_means = means_dict
 
-# Store in session
-st.session_state.area_means = dict(zip(means["pricearea"], means["quantitykwh"]))
-
-if means.empty:
+if means_df.empty:
     st.warning("No data available for this selection.")
     st.stop()
 
@@ -88,22 +87,41 @@ if means.empty:
 # ==============================================================================
 m = folium.Map(location=[63.0, 10.5], zoom_start=5.5)
 
+# Force a visible gradient
+vmin = means_df["quantitykwh"].min()
+vmax = means_df["quantitykwh"].max()
+thresholds = np.linspace(vmin, vmax, 6).tolist()
+
 folium.Choropleth(
     geo_data=geojson_data,
     name="choropleth",
-    data=means,
+    data=means_df,
     columns=["pricearea", "quantitykwh"],
     key_on="feature.properties.ElSpotOmr",
     fill_color="YlGnBu",
     fill_opacity=0.7,
     line_opacity=0.2,
-    legend_name=f"{data_type} mean quantity (kWh)"
+    legend_name=f"{data_type} mean quantity (kWh)",
+    threshold_scale=thresholds,
+    nan_fill_color="lightgray"
 ).add_to(m)
 
-# Add tooltip for area names
+# Add tooltip with actual values
+def tooltip_function(feature):
+    area = normalize_area_name(feature["properties"]["ElSpotOmr"])
+    value = means_dict.get(area, None)
+    if value is None or pd.isna(value):
+        return f"{area}: No data"
+    return f"{area}: {value:.2f} kWh"
+
 folium.GeoJson(
     geojson_data,
-    tooltip=folium.GeoJsonTooltip(fields=["ElSpotOmr"], aliases=["Price area:"])
+    tooltip=folium.GeoJsonTooltip(
+        fields=["ElSpotOmr"],
+        aliases=["Price area:"],
+        labels=True,
+        sticky=True
+    )
 ).add_to(m)
 
 # Marker for clicked point
@@ -139,7 +157,7 @@ if map_data and map_data.get("last_clicked"):
 # Display values
 # ==============================================================================
 st.write("### Mean quantity (kWh) per NO area:")
-st.dataframe(means)
+st.dataframe(means_df)
 
 if st.session_state.selected_area:
     val = st.session_state.area_means.get(st.session_state.selected_area, None)
