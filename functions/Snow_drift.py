@@ -3,6 +3,7 @@ import pandas as pd
 import matplotlib.pyplot as plt
 from functions.weather_utils import download_era5_data
 
+
 # --- Tabler (2003) components ---
 
 def compute_Qupot(hourly_wind_speeds, dt=3600):
@@ -48,10 +49,18 @@ def calculate_snow_drift(lat: float, lon: float, start_date: pd.Timestamp, end_d
     dfs = [download_era5_data(lat, lon, y) for y in years]
     df = pd.concat(dfs).sort_values("time")
 
+    # Ensure dataframe times are tz-aware in Europe/Oslo
+    df["time"] = df["time"].dt.tz_convert("Europe/Oslo")
+
+    # Make bounds tz-aware
+    start_date = pd.Timestamp(start_date).tz_localize("Europe/Oslo") if start_date.tzinfo is None else start_date
+    end_date = pd.Timestamp(end_date).tz_localize("Europe/Oslo") if end_date.tzinfo is None else end_date
+
     df_period = df[(df["time"] >= start_date) & (df["time"] <= end_date)].copy()
     if df_period.empty:
         return float("nan")
 
+    # Hourly Swe: precipitation when temp < +1°C
     df_period["Swe_hourly"] = df_period.apply(
         lambda row: row["precipitation"] if row["temperature_2m"] < 1 else 0, axis=1
     )
@@ -75,6 +84,9 @@ def plot_wind_rose(lat: float, lon: float, start_year: int, end_year: int):
         plt.text(0.5, 0.5, "No data in selected range", ha="center", va="center")
         plt.axis("off")
         return fig
+
+    # Ensure dataframe times are tz-aware in Europe/Oslo
+    df["time"] = df["time"].dt.tz_convert("Europe/Oslo")
 
     # Compute Swe and sector transports
     df["Swe_hourly"] = df.apply(
