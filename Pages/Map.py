@@ -88,6 +88,13 @@ if means_df.empty:
 # ==============================================================================
 # Create map
 # ==============================================================================
+geojson_keys = {feature["properties"]["ElSpotOmrNorm"] for feature in geojson_data["features"]}
+data_keys = set(means_df["pricearea"])
+
+st.write("GeoJSON keys:", geojson_keys)
+st.write("Data keys:", data_keys)
+
+
 m = folium.Map(location=[63.0, 10.5], zoom_start=5.5)
 
 # Thresholds for choropleth
