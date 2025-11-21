@@ -37,12 +37,16 @@ if "area_means" not in st.session_state:
 # ------------------------------------------------------------------------------
 data_type = st.radio("Select data type:", ["Production", "Consumption"], horizontal=True)
 
+# Load Elhub data
 if data_type == "Production":
-    df = load_elhub_data()          # production DF
+    df = load_elhub_data()
+    group_col = "productiongroup"
 else:
-    df = load_elhub_consumption()   # consumption DF
+    df = load_elhub_consumption()
+    group_col = "consumptionsgroup"
 
-groups = sorted(df["group"].dropna().unique().tolist())
+# Dropdown uses the correct group column
+groups = sorted(df[group_col].dropna().unique().tolist())
 group = st.selectbox("Select group:", groups)
 
 days = st.slider("Time interval (days):", 1, 30, 7)
@@ -59,7 +63,7 @@ start_time = end_time - timedelta(days=days)
 df_period = df[
     (df["starttime"] >= start_time) &
     (df["starttime"] <= end_time) &
-    (df["group"] == group)
+    (df[group_col] == group)
 ]
 
 # ------------------------------------------------------------------------------
