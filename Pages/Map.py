@@ -184,3 +184,5 @@ if st.session_state.selected_area:
 
 if st.session_state.clicked_point:
     st.write(f"Clicked coordinates: {st.session_state.clicked_point}")
+
+st.write("Clicked point:", st.session_state.clicked_point)
