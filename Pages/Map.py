@@ -10,6 +10,10 @@ from datetime import timedelta
 
 from functions.elhub_utils import load_elhub_data, load_elhub_consumption
 
+if "clicked_point" not in st.session_state:
+    st.session_state.clicked_point = None
+
+
 st.set_page_config(layout="wide")
 st.title("Energy Map – Norway Price Areas (NO1–NO5)")
 
