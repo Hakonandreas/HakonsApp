@@ -3,7 +3,6 @@ import pandas as pd
 import matplotlib.pyplot as plt
 from functions.weather_utils import download_era5_data
 
-
 # --- Tabler (2003) components ---
 
 def compute_Qupot(hourly_wind_speeds, dt=3600):
@@ -45,24 +44,20 @@ def calculate_snow_drift(lat: float, lon: float, start_date: pd.Timestamp, end_d
     Download ERA5 data for the given coordinates and seasonal year, compute Qt (kg/m).
     The date range should represent one seasonal year (July 1 to June 30).
     """
-    # Fetch data for both years in the July–June season
     years = {start_date.year, end_date.year}
     dfs = [download_era5_data(lat, lon, y) for y in years]
     df = pd.concat(dfs).sort_values("time")
 
-    # Filter to the requested period
     df_period = df[(df["time"] >= start_date) & (df["time"] <= end_date)].copy()
     if df_period.empty:
         return float("nan")
 
-    # Hourly Swe: precipitation when temp < +1°C
     df_period["Swe_hourly"] = df_period.apply(
         lambda row: row["precipitation"] if row["temperature_2m"] < 1 else 0, axis=1
     )
     Swe_total = df_period["Swe_hourly"].sum()
     wind_speeds = df_period["wind_speed_10m"].tolist()
 
-    # Tabler parameters
     T, F, theta = 3000, 30000, 0.5
     Qt = compute_snow_transport(T, F, theta, Swe_total, wind_speeds)
     return float(Qt)
@@ -73,7 +68,6 @@ def plot_wind_rose(lat: float, lon: float, start_year: int, end_year: int):
     Download ERA5 data for the given coordinates and year range, plot wind rose.
     Returns a matplotlib Figure.
     """
-    # Fetch data for all years in the range
     dfs = [download_era5_data(lat, lon, y) for y in range(start_year, end_year + 1)]
     df = pd.concat(dfs).sort_values("time")
     if df.empty:
