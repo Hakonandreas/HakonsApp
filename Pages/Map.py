@@ -7,7 +7,6 @@ from pathlib import Path
 import pandas as pd
 import numpy as np
 from datetime import timedelta
-from branca.element import Element
 
 from functions.elhub_utils import load_elhub_data, load_elhub_consumption
 
@@ -75,50 +74,35 @@ df_period = df[
 # ==============================================================================
 # Compute mean per price area
 # ==============================================================================
-means = df_period.groupby("pricearea")["quantitykwh"].mean().to_dict()
+means = df_period.groupby("pricearea")["quantitykwh"].mean().reset_index()
 
-for feature in geojson_data["features"]:
-    area = extract_area_name(feature)
-    if area not in means:
-        means[area] = np.nan
+# Store in session
+st.session_state.area_means = dict(zip(means["pricearea"], means["quantitykwh"]))
 
-st.session_state.area_means = means
-
-# ==============================================================================
-# Color scale
-# ==============================================================================
-vals = [v for v in means.values() if not pd.isna(v)]
-vmin, vmax = (0, 1) if len(vals) == 0 else (min(vals), max(vals))
-
-def get_color(value):
-    if pd.isna(value):
-        return "#cccccc"
-    if vmin == vmax:
-        norm = 0.5
-    else:
-        norm = (value - vmin) / (vmax - vmin)
-        norm = min(max(norm, 0), 1)
-    r = int(255 * (1 - norm))
-    g = int(255 * norm)
-    return f"#{r:02x}{g:02x}00"
+if means.empty:
+    st.warning("No data available for this selection.")
+    st.stop()
 
 # ==============================================================================
-# Create the map
+# Create the map with Choropleth
 # ==============================================================================
 m = folium.Map(location=[63.0, 10.5], zoom_start=5.5)
 
-def style_function(feature):
-    area = extract_area_name(feature)
-    val = means.get(area, np.nan)
-    fill = get_color(val)
+folium.Choropleth(
+    geo_data=geojson_data,
+    name="choropleth",
+    data=means,
+    columns=["pricearea", "quantitykwh"],
+    key_on="feature.properties.ElSpotOmr",
+    fill_color="YlGnBu",
+    fill_opacity=0.7,
+    line_opacity=0.2,
+    legend_name=f"{data_type} mean quantity (kWh)"
+).add_to(m)
 
-    if st.session_state.selected_area == area:
-        return {"fillColor": fill, "color": "red", "weight": 3, "fillOpacity": 0.6}
-    return {"fillColor": fill, "color": "blue", "weight": 1, "fillOpacity": 0.4}
-
+# Add tooltip for area names
 folium.GeoJson(
     geojson_data,
-    style_function=style_function,
     tooltip=folium.GeoJsonTooltip(fields=["ElSpotOmr"], aliases=["Price area:"])
 ).add_to(m)
 
@@ -128,34 +112,6 @@ if st.session_state.clicked_point:
         st.session_state.clicked_point,
         icon=folium.Icon(color="red", icon="info-sign")
     ).add_to(m)
-
-# ==============================================================================
-# Add legend (no macro, pure HTML)
-# ==============================================================================
-legend_html = f"""
-<div style="
-    position: fixed;
-    bottom: 50px;
-    left: 50px;
-    width: 160px;
-    height: 190px;
-    background-color: white;
-    border:2px solid grey;
-    z-index:9999;
-    font-size:14px;
-    padding: 10px;
-    ">
-    <b>{data_type} scale (kWh)</b><br>
-    <i style="background:{get_color(vmin)};width:20px;height:10px;display:inline-block;"></i> {vmin:.1f}<br>
-    <i style="background:{get_color(vmin + (vmax - vmin) * 0.2)};width:20px;height:10px;display:inline-block;"></i> {(vmin + (vmax - vmin) * 0.2):.1f}<br>
-    <i style="background:{get_color(vmin + (vmax - vmin) * 0.4)};width:20px;height:10px;display:inline-block;"></i> {(vmin + (vmax - vmin) * 0.4):.1f}<br>
-    <i style="background:{get_color(vmin + (vmax - vmin) * 0.6)};width:20px;height:10px;display:inline-block;"></i> {(vmin + (vmax - vmin) * 0.6):.1f}<br>
-    <i style="background:{get_color(vmin + (vmax - vmin) * 0.8)};width:20px;height:10px;display:inline-block;"></i> {(vmin + (vmax - vmin) * 0.8):.1f}<br>
-    <i style="background:{get_color(vmax)};width:20px;height:10px;display:inline-block;"></i> {vmax:.1f}
-</div>
-"""
-
-m.get_root().html.add_child(Element(legend_html))
 
 # ==============================================================================
 # Click handler
@@ -183,9 +139,13 @@ if map_data and map_data.get("last_clicked"):
 # Display values
 # ==============================================================================
 st.write("### Mean quantity (kWh) per NO area:")
-st.json(means)
+st.dataframe(means)
 
 if st.session_state.selected_area:
-    st.success(f"Selected area: **{st.session_state.selected_area}**")
+    val = st.session_state.area_means.get(st.session_state.selected_area, None)
+    if val is not None:
+        st.success(f"Selected area: **{st.session_state.selected_area}** → {val:.2f} kWh")
+    else:
+        st.success(f"Selected area: **{st.session_state.selected_area}** (no data)")
 
 st.write(f"Clicked coordinates: {st.session_state.clicked_point}")
