@@ -1,97 +1,42 @@
 import streamlit as st
 import pandas as pd
-import plotly.graph_objects as go
-from plotly.subplots import make_subplots
-from functions.elhub_utils import load_elhub_data, load_elhub_consumption
-from functions.weather_utils import download_era5_data
+import matplotlib.pyplot as plt
+from functions.snow_drift import calculate_snow_drift, plot_wind_rose
 
-# ---------------------------------------------------------
-# Sliding Window Correlation function
-# ---------------------------------------------------------
-def sliding_window_corr(series1, series2, window, lag):
-    """
-    Compute sliding window correlation with lag.
-    Lag > 0 shifts meteorology BACKWARD (met at t-lag vs energy at t).
-    """
-    s1 = series1.shift(lag)  # shift meteorology
-    return s1.rolling(window, center=True).corr(series2)
+st.title("❄️ Snow Drift Explorer")
 
+# Check if coordinates are available
+if "clicked_point" not in st.session_state or st.session_state.clicked_point is None:
+    st.warning("No coordinates selected on the map page. Please go back and click a location.")
+    st.stop()
 
-# ---------------------------------------------------------
-# Streamlit UI
-# ---------------------------------------------------------
-st.title("📈 Sliding Window Correlation Explorer")
-st.markdown("""
-Explore relationships between **meteorological conditions** and  
-**energy production/consumption** with adjustable **window** and **lag**.
-""")
+lat, lon = st.session_state.clicked_point
+st.write(f"Using coordinates: {lat:.3f}, {lon:.3f}")
 
-# Load data
-prod_df = load_elhub_data()
-cons_df = load_elhub_consumption
-weather_df = download_era5_data()
-
-# Merge on date
-merged = pd.merge(weather_df, prod_df, on="date", how="inner")
-merged = pd.merge(merged, cons_df, on="date", suffixes=("_prod", "_cons"))
-
-# ---------------------------------------------------------
-# Sidebar Controls
-# ---------------------------------------------------------
-st.sidebar.header("Controls")
-
-met_vars = [c for c in weather_df.columns if c not in ["date", "time"]]
-energy_vars = [c for c in merged.columns if c not in weather_df.columns and c not in ["date", "starttime"]]
-
-met_var = st.sidebar.selectbox("Meteorological variable", met_vars)
-energy_var = st.sidebar.selectbox("Energy variable", energy_vars)
-
-window = st.sidebar.slider("Window size (days)", 5, 120, 45)
-lag = st.sidebar.slider("Lag (days)", -30, 30, 0)
-
-# Extract series
-s1 = merged[met_var]
-s2 = merged[energy_var]
-
-# Compute SWC
-swc = sliding_window_corr(s1, s2, window, lag)
-
-# ---------------------------------------------------------
-# Plotly Visualization
-# ---------------------------------------------------------
-fig = make_subplots(
-    rows=3, cols=1, shared_xaxes=True,
-    subplot_titles=(met_var, energy_var, "Sliding Window Correlation")
+# Year range selector
+start_year, end_year = st.slider(
+    "Select year range",
+    min_value=2000, max_value=2025,
+    value=(2015, 2020)
 )
 
-fig.add_trace(go.Scatter(y=s1, mode="lines", name=met_var), row=1, col=1)
-fig.add_trace(go.Scatter(y=s2, mode="lines", name=energy_var), row=2, col=1)
-fig.add_trace(go.Scatter(y=swc, mode="lines", name="SWC"), row=3, col=1)
+# Define July–June year boundaries
+years = range(start_year, end_year + 1)
+results = []
 
-fig.update_yaxes(title_text=met_var, row=1, col=1)
-fig.update_yaxes(title_text=energy_var, row=2, col=1)
-fig.update_yaxes(title_text="Correlation", range=[-1, 1], row=3, col=1)
+for y in years:
+    start_date = pd.Timestamp(year=y, month=7, day=1)
+    end_date = pd.Timestamp(year=y+1, month=6, day=30)
+    drift = calculate_snow_drift(lat, lon, start_date, end_date)
+    results.append({"year": f"{y}-{y+1}", "snow_drift": drift})
 
-fig.update_layout(height=900, showlegend=False)
+df = pd.DataFrame(results)
 
-st.plotly_chart(fig, use_container_width=True)
+# Plot snow drift per year
+st.write("### Annual Snow Drift (July–June)")
+st.bar_chart(df.set_index("year"))
 
-# ---------------------------------------------------------
-# Interpretation section
-# ---------------------------------------------------------
-st.markdown("""
-## 🔍 Interpretation Tips
-
-Try playing with lags and window sizes:
-
-- **Lag > 0**: Meteorology influences energy *in the future*  
-- **Lag < 0**: Energy changes precede weather patterns (often noise)
-- **Large window (80–120 days)**: long-term seasonal patterns  
-- **Small window (5–20 days)**: acute responses, e.g., storms or cold snaps  
-
-Look for correlations that  
-- **drop sharply** during storms  
-- **flip sign** around extreme cold or heat events  
-- **increase** during stable temperature–demand relationships  
-
-""")
+# Plot wind rose
+st.write("### Wind Rose")
+fig = plot_wind_rose(lat, lon, start_year, end_year)
+st.pyplot(fig)
