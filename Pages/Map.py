@@ -8,9 +8,10 @@ import pandas as pd
 import numpy as np
 from datetime import timedelta
 
-from functions.weather_utils import download_era5_data 
+from functions.elhub_utils import load_elhub_data, load_elhub_consumption
 
-st.title("Norway Price Areas Map (NO1–NO5)")
+st.set_page_config(layout="wide")
+st.title("Energy Map – Norway Price Areas (NO1–NO5)")
 
 # ------------------------------------------------------------------------------
 # Load GeoJSON
@@ -29,80 +30,86 @@ if "selected_area" not in st.session_state:
     st.session_state.selected_area = None
 
 if "area_means" not in st.session_state:
-    st.session_state.area_means = None    # stores REAL choropleth values
+    st.session_state.area_means = None
 
 # ------------------------------------------------------------------------------
-# User selections
+# UI
 # ------------------------------------------------------------------------------
-variable = st.selectbox(
-    "Choose ERA5 variable:",
-    ["temperature_2m", "precipitation", "wind_speed_10m", "wind_gusts_10m"]
-)
+data_type = st.radio("Select data type:", ["Production", "Consumption"], horizontal=True)
+
+if data_type == "Production":
+    df = load_elhub_data()          # production DF
+else:
+    df = load_elhub_consumption()   # consumption DF
+
+groups = sorted(df["group"].dropna().unique().tolist())
+group = st.selectbox("Select group:", groups)
 
 days = st.slider("Time interval (days):", 1, 30, 7)
-year = st.selectbox("Year", [2020, 2021, 2022, 2023, 2024])
 
 # ------------------------------------------------------------------------------
-# Extract centroid coordinates for each NO area
+# Prepare time-filtered dataframe
 # ------------------------------------------------------------------------------
-def get_area_centroids():
-    centroids = {}
-    for feature in geojson_data["features"]:
-        name = feature["properties"]["ElSpotOmr"]
-        polygon = shape(feature["geometry"])
-        centroid = polygon.centroid
-        centroids[name] = (centroid.y, centroid.x)  # lat, lon
-    return centroids
+df = df.copy()
+df["starttime"] = pd.to_datetime(df["starttime"])
 
-centroids = get_area_centroids()
+end_time = df["starttime"].max()
+start_time = end_time - timedelta(days=days)
+
+df_period = df[
+    (df["starttime"] >= start_time) &
+    (df["starttime"] <= end_time) &
+    (df["group"] == group)
+]
 
 # ------------------------------------------------------------------------------
-# Compute mean ERA5 values per area (cached)
+# Compute mean per NO area
 # ------------------------------------------------------------------------------
-@st.cache_data(show_spinner=True)
-def compute_area_means(variable, days, year, centroids):
-    means = {}
-    for area, (lat, lon) in centroids.items():
-
-        df = download_era5_data(lat, lon, year)
-
-        end_time = df["time"].max()
-        start_time = end_time - timedelta(days=days)
-
-        df_period = df[(df["time"] >= start_time) & (df["time"] <= end_time)]
-
-        means[area] = float(df_period[variable].mean())
-
-    return means
-
-# Compute means when user changes selections
-st.session_state.area_means = compute_area_means(
-    variable, days, year, centroids
+means = (
+    df_period.groupby("area")["value"]
+    .mean()
+    .to_dict()
 )
 
-means = st.session_state.area_means
+# Ensure all NO1–NO5 exist
+for feat in geojson_data["features"]:
+    area = feat["properties"]["ElSpotOmr"]
+    if area not in means:
+        means[area] = np.nan
+
+st.session_state.area_means = means
 
 # ------------------------------------------------------------------------------
-# Color function
+# Color scale
 # ------------------------------------------------------------------------------
-vals = list(means.values())
-vmin, vmax = min(vals), max(vals)
+vals = [v for v in means.values() if not pd.isna(v)]
+
+if len(vals) == 0:
+    vmin, vmax = 0, 1
+else:
+    vmin, vmax = min(vals), max(vals)
 
 def get_color(value):
-    norm = (value - vmin) / (vmax - vmin + 1e-9)
+    if pd.isna(value):
+        return "#cccccc"
+    if vmin == vmax:
+        norm = 0.5
+    else:
+        norm = (value - vmin) / (vmax - vmin)
+        norm = min(max(norm, 0), 1)
     r = int(255 * (1 - norm))
     g = int(255 * norm)
     return f"#{r:02x}{g:02x}00"
 
 # ------------------------------------------------------------------------------
-# Build Folium map
+# Build map
 # ------------------------------------------------------------------------------
 m = folium.Map(location=[63.0, 10.5], zoom_start=5.5)
 
 def style_function(feature):
     area = feature["properties"]["ElSpotOmr"]
-
-    fill = get_color(means[area])
+    val = means.get(area, np.nan)
+    fill = get_color(val)
 
     if st.session_state.selected_area == area:
         return {
@@ -111,7 +118,6 @@ def style_function(feature):
             "weight": 3,
             "fillOpacity": 0.6
         }
-
     return {
         "fillColor": fill,
         "color": "blue",
@@ -125,17 +131,18 @@ folium.GeoJson(
     tooltip=folium.GeoJsonTooltip(fields=["ElSpotOmr"], aliases=["Price area:"])
 ).add_to(m)
 
+# clicked point marker
 if st.session_state.clicked_point:
     folium.Marker(
         st.session_state.clicked_point,
         icon=folium.Icon(color="red", icon="info-sign")
     ).add_to(m)
 
+map_data = st_folium(m, width=900, height=600)
+
 # ------------------------------------------------------------------------------
 # Click handler
 # ------------------------------------------------------------------------------
-map_data = st_folium(m, width=800, height=550)
-
 if map_data and map_data.get("last_clicked"):
     lat = map_data["last_clicked"]["lat"]
     lon = map_data["last_clicked"]["lng"]
@@ -154,9 +161,9 @@ if map_data and map_data.get("last_clicked"):
     st.rerun()
 
 # ------------------------------------------------------------------------------
-# Display information
+# Display values
 # ------------------------------------------------------------------------------
-st.write("### Choropleth Mean Values:")
+st.write("### Mean values (area → mean value):")
 st.json(means)
 
 if st.session_state.selected_area:
