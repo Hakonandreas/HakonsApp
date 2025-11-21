@@ -27,7 +27,7 @@ def load_elhub_data():
 
     # Collections
     prod_collection = db.production
-    #cons_collection = db.consumption
+    cons_collection = db.consumption
 
     # Load production
     prod_data = list(prod_collection.find())
@@ -39,13 +39,13 @@ def load_elhub_data():
     prod_df["date"] = prod_df["starttime"].dt.date
         
     # Load consumption
-    #cons_data = list(cons_collection.find())
-    #cons_df = pd.DataFrame(cons_data)
-    #if cons_df.empty:
-    #    raise ValueError("No data found in the 'consumption' collection.")
-    #cons_df["starttime"] = pd.to_datetime(cons_df["starttime"])
-    #cons_df["month"] = cons_df["starttime"].dt.strftime("%Y-%m")
-    #cons_df["date"] = cons_df["starttime"].dt.date
+    cons_data = list(cons_collection.find())
+    cons_df = pd.DataFrame(cons_data)
+    if cons_df.empty:
+        raise ValueError("No data found in the 'consumption' collection.")
+    cons_df["starttime"] = pd.to_datetime(cons_df["starttime"])
+    cons_df["month"] = cons_df["starttime"].dt.strftime("%Y-%m")
+    cons_df["date"] = cons_df["starttime"].dt.date
         
-    return prod_df #, cons_df
+    return prod_df, cons_df
 
