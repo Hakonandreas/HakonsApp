@@ -7,12 +7,7 @@ from pathlib import Path
 import pandas as pd
 import numpy as np
 from datetime import timedelta
-
 from functions.elhub_utils import load_elhub_data, load_elhub_consumption
-
-if "clicked_point" not in st.session_state:
-    st.session_state.clicked_point = None
-
 
 st.set_page_config(layout="wide")
 st.title("Energy Map – Norway Price Areas (NO1–NO5)")
@@ -27,7 +22,6 @@ def normalize_area_name(name):
             return "NO" + name[-1]
     return name
 
-
 # ==============================================================================
 # Load GeoJSON and inject normalized keys
 # ==============================================================================
@@ -40,14 +34,12 @@ for feature in geojson_data["features"]:
     feature["properties"]["ElSpotOmrNorm"] = normalize_area_name(raw_name)
 
 # ==============================================================================
-# Session state
+# Session state init
 # ==============================================================================
 if "clicked_point" not in st.session_state:
     st.session_state.clicked_point = None
 if "selected_area" not in st.session_state:
     st.session_state.selected_area = None
-if "area_means" not in st.session_state:
-    st.session_state.area_means = {}
 
 # ==============================================================================
 # UI – choose Production / Consumption
@@ -86,7 +78,6 @@ df_period = df[
 # ==============================================================================
 means_df = df_period.groupby("pricearea", as_index=False)["quantitykwh"].mean()
 means_dict = dict(zip(means_df["pricearea"], means_df["quantitykwh"]))
-st.session_state.area_means = means_dict
 
 if means_df.empty:
     st.warning("No data available for this selection.")
@@ -141,11 +132,27 @@ if st.session_state.clicked_point:
         icon=folium.Icon(color="red", icon="info-sign")
     ).add_to(m)
 
+# Highlight selected area
+if st.session_state.selected_area:
+    def highlight_style(feat):
+        is_sel = feat["properties"]["ElSpotOmrNorm"] == st.session_state.selected_area
+        if is_sel:
+            return {"color": "#d62728", "weight": 4, "fillOpacity": 0}
+        return {"color": "transparent", "weight": 0, "fillOpacity": 0}
+
+    folium.GeoJson(
+        geojson_data,
+        name="selected_highlight",
+        style_function=highlight_style,
+        tooltip=None,
+    ).add_to(m)
+
+# Single st_folium call
+map_data = st_folium(m, width=950, height=630)
+
 # ==============================================================================
 # Click handler
 # ==============================================================================
-map_data = st_folium(m, width=950, height=630)
-
 if map_data and map_data.get("last_clicked"):
     lat = map_data["last_clicked"]["lat"]
     lon = map_data["last_clicked"]["lng"]
@@ -160,27 +167,7 @@ if map_data and map_data.get("last_clicked"):
             clicked_area = feature["properties"]["ElSpotOmrNorm"]
             break
 
-    if clicked_area != st.session_state.selected_area:
-        st.session_state.selected_area = clicked_area
-        st.rerun()
-
-# ==============================================================================
-# Highlight selected area
-# ==============================================================================
-if st.session_state.selected_area:
-    def highlight_style(feat):
-        is_sel = feat["properties"]["ElSpotOmrNorm"] == st.session_state.selected_area
-        if is_sel:
-            return {"color": "#d62728", "weight": 4, "fillOpacity": 0}
-        return {"color": "transparent", "weight": 0, "fillOpacity": 0}
-
-    folium.GeoJson(
-        geojson_data,
-        name="selected_highlight",
-        style_function=highlight_style,
-        tooltip=None,
-    ).add_to(m)
-    map_data = st_folium(m, width=950, height=630)
+    st.session_state.selected_area = clicked_area
 
 # ==============================================================================
 # Display values
@@ -189,10 +176,11 @@ st.write("### Mean quantity (kWh) per NO area:")
 st.dataframe(means_df)
 
 if st.session_state.selected_area:
-    val = st.session_state.area_means.get(st.session_state.selected_area, None)
+    val = means_dict.get(st.session_state.selected_area, None)
     if val is not None and not pd.isna(val):
         st.success(f"Selected area: **{st.session_state.selected_area}** → {val:.2f} kWh")
     else:
         st.success(f"Selected area: **{st.session_state.selected_area}** (no data)")
 
-st.write(f"Clicked coordinates: {st.session_state.clicked_point}")
+if st.session_state.clicked_point:
+    st.write(f"Clicked coordinates: {st.session_state.clicked_point}")

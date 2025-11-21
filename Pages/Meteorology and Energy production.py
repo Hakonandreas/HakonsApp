@@ -3,7 +3,6 @@ import pandas as pd
 import matplotlib.pyplot as plt
 from functions.Snow_drift import calculate_snow_drift, plot_wind_rose
 
-
 st.title("❄️ Snow Drift Explorer")
 
 # Check if coordinates are available
