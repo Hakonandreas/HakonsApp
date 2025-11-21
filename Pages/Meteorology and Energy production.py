@@ -1,7 +1,7 @@
 import streamlit as st
 import pandas as pd
 import matplotlib.pyplot as plt
-from functions.snow_drift import calculate_snow_drift, plot_wind_rose
+from functions.Snow_drift import calculate_snow_drift, plot_wind_rose
 
 st.title("❄️ Snow Drift Explorer")
 
