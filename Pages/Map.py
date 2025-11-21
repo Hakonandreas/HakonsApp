@@ -7,7 +7,7 @@ from pathlib import Path
 import pandas as pd
 import numpy as np
 from datetime import timedelta
-from branca.element import Template, MacroElement
+from branca.element import Element
 
 from functions.elhub_utils import load_elhub_data, load_elhub_consumption
 
@@ -130,10 +130,9 @@ if st.session_state.clicked_point:
     ).add_to(m)
 
 # ==============================================================================
-# Add legend to map
+# Add legend (no macro, pure HTML)
 # ==============================================================================
 legend_html = f"""
-{{% macro html() %}}
 <div style="
     position: fixed;
     bottom: 50px;
@@ -154,12 +153,9 @@ legend_html = f"""
     <i style="background:{get_color(vmin + (vmax - vmin) * 0.8)};width:20px;height:10px;display:inline-block;"></i> {(vmin + (vmax - vmin) * 0.8):.1f}<br>
     <i style="background:{get_color(vmax)};width:20px;height:10px;display:inline-block;"></i> {vmax:.1f}
 </div>
-{{% endmacro %}}
 """
 
-legend = MacroElement()
-legend._template = Template(legend_html)
-m.get_root().add_child(legend)
+m.get_root().html.add_child(Element(legend_html))
 
 # ==============================================================================
 # Click handler
