@@ -3,22 +3,30 @@ import pandas as pd
 import matplotlib.pyplot as plt
 from functions.weather_utils import download_era5_data
 
-# --- Tabler (2003) components (same as before) ---
+
+# --- Tabler (2003) components ---
 
 def compute_Qupot(hourly_wind_speeds, dt=3600):
+    """Potential wind-driven transport (Qupot) [kg/m] via u^3.8."""
     return sum((u ** 3.8) * dt for u in hourly_wind_speeds) / 233847
 
+
 def sector_index(direction):
+    """Map wind direction (deg) to 16-sector index."""
     return int(((direction + 11.25) % 360) // 22.5)
 
+
 def compute_sector_transport(hourly_wind_speeds, hourly_wind_dirs, dt=3600):
+    """Cumulative transport per 16 wind sectors (kg/m)."""
     sectors = [0.0] * 16
     for u, d in zip(hourly_wind_speeds, hourly_wind_dirs):
         idx = sector_index(d)
         sectors[idx] += ((u ** 3.8) * dt) / 233847
     return sectors
 
+
 def compute_snow_transport(T, F, theta, Swe, hourly_wind_speeds, dt=3600):
+    """Tabler components with controlling transport and annual Qt."""
     Qupot = compute_Qupot(hourly_wind_speeds, dt)
     Qspot = 0.5 * T * Swe
     Srwe = theta * Swe
@@ -29,10 +37,14 @@ def compute_snow_transport(T, F, theta, Swe, hourly_wind_speeds, dt=3600):
     Qt = Qinf * (1 - 0.14 ** (F / T))
     return Qt
 
+
 # --- Public API ---
 
 def calculate_snow_drift(lat: float, lon: float, start_date: pd.Timestamp, end_date: pd.Timestamp) -> float:
-    """Download ERA5 data for the given coordinates and seasonal year, compute Qt (kg/m)."""
+    """
+    Download ERA5 data for the given coordinates and seasonal year, compute Qt (kg/m).
+    The date range should represent one seasonal year (July 1 to June 30).
+    """
     years = {start_date.year, end_date.year}
     dfs = [download_era5_data(lat, lon, y) for y in years]
     df = pd.concat(dfs).sort_values("time")
@@ -51,9 +63,13 @@ def calculate_snow_drift(lat: float, lon: float, start_date: pd.Timestamp, end_d
     Qt = compute_snow_transport(T, F, theta, Swe_total, wind_speeds)
     return float(Qt)
 
+
 def plot_wind_rose(lat: float, lon: float, start_year: int, end_year: int):
-    """Download ERA5 data for the given coordinates and year range, plot wind rose."""
-    dfs = [download_era5_data(lat, lon, y) for y in range(start_year, end_year+1)]
+    """
+    Download ERA5 data for the given coordinates and year range, plot wind rose.
+    Returns a matplotlib Figure.
+    """
+    dfs = [download_era5_data(lat, lon, y) for y in range(start_year, end_year + 1)]
     df = pd.concat(dfs).sort_values("time")
     if df.empty:
         fig = plt.figure()
@@ -75,11 +91,12 @@ def plot_wind_rose(lat: float, lon: float, start_year: int, end_year: int):
 
     # Plot rose
     fig, ax = plt.subplots(subplot_kw={'projection': 'polar'}, figsize=(8, 8))
-    angles = np.deg2rad(np.arange(0, 360, 360/16))
-    ax.bar(angles, np.array(sectors)/1000.0, width=np.deg2rad(22.5), edgecolor="black")
+    angles = np.deg2rad(np.arange(0, 360, 360 / 16))
+    ax.bar(angles, np.array(sectors) / 1000.0, width=np.deg2rad(22.5), edgecolor="black")
     ax.set_theta_zero_location("N")
     ax.set_theta_direction(-1)
-    directions = ['N','NNE','NE','ENE','E','ESE','SE','SSE','S','SSW','SW','WSW','W','WNW','NW','NNW']
+    directions = ['N','NNE','NE','ENE','E','ESE','SE','SSE',
+                  'S','SSW','SW','WSW','W','WNW','NW','NNW']
     ax.set_xticks(angles)
     ax.set_xticklabels(directions)
     ax.set_title(f"Wind rose {start_year}-{end_year}\nAvg Qt: {Qt/1000:.1f} tonnes/m")
