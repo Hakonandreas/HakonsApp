@@ -17,9 +17,12 @@ st.title("Energy Map – Norway Price Areas (NO1–NO5)")
 # Normalize function for GeoJSON and dataframe keys
 # ==============================================================================
 def normalize_area_name(name):
-    if isinstance(name, str) and name.startswith("N0") and len(name) == 3:
-        return "NO" + name[-1]
+    if isinstance(name, str):
+        name = name.replace(" ", "")  # remove spaces
+        if name.startswith("N0") and len(name) == 3:
+            return "NO" + name[-1]
     return name
+
 
 # ==============================================================================
 # Load GeoJSON and inject normalized keys
@@ -88,13 +91,6 @@ if means_df.empty:
 # ==============================================================================
 # Create map
 # ==============================================================================
-geojson_keys = {feature["properties"]["ElSpotOmrNorm"] for feature in geojson_data["features"]}
-data_keys = set(means_df["pricearea"])
-
-st.write("GeoJSON keys:", geojson_keys)
-st.write("Data keys:", data_keys)
-
-
 m = folium.Map(location=[63.0, 10.5], zoom_start=5.5)
 
 # Thresholds for choropleth
