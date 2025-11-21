@@ -2,6 +2,8 @@ import streamlit as st
 import pandas as pd
 import matplotlib.pyplot as plt
 from functions.Snow_drift import calculate_snow_drift, plot_wind_rose
+from functions.weather_utils import download_era5_data
+
 
 st.title("❄️ Snow Drift Explorer")
 
