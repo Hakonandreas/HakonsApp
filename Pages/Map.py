@@ -7,6 +7,7 @@ from pathlib import Path
 import pandas as pd
 import numpy as np
 from datetime import timedelta
+from branca.element import Template, MacroElement
 
 from functions.elhub_utils import load_elhub_data, load_elhub_consumption
 
@@ -20,7 +21,6 @@ geojson_path = Path(__file__).parent / "data" / "ElSpot_omraade.geojson"
 with open(geojson_path, "r", encoding="utf-8") as f:
     geojson_data = json.load(f)
 
-# Normalize GeoJSON area ("N01") → DataFrame area ("NO1")
 def normalize_area_name(name):
     if isinstance(name, str) and name.startswith("N0") and len(name) == 3:
         return "NO" + name[-1]
@@ -52,11 +52,8 @@ else:
     df = load_elhub_consumption()
     group_col = "consumptiongroup"
 
-# Group selector
 groups = sorted(df[group_col].dropna().unique().tolist())
 group = st.selectbox("Select group:", groups)
-
-# Time window
 days = st.slider("Time interval (days):", 1, 30, 7)
 
 # ==============================================================================
@@ -76,11 +73,10 @@ df_period = df[
 ]
 
 # ==============================================================================
-# Compute mean per price area (NO1–NO5)
+# Compute mean per price area
 # ==============================================================================
 means = df_period.groupby("pricearea")["quantitykwh"].mean().to_dict()
 
-# Ensure all NO-areas exist even when missing in data
 for feature in geojson_data["features"]:
     area = extract_area_name(feature)
     if area not in means:
@@ -96,7 +92,7 @@ vmin, vmax = (0, 1) if len(vals) == 0 else (min(vals), max(vals))
 
 def get_color(value):
     if pd.isna(value):
-        return "#cccccc"   # grey for missing
+        return "#cccccc"
     if vmin == vmax:
         norm = 0.5
     else:
@@ -133,11 +129,43 @@ if st.session_state.clicked_point:
         icon=folium.Icon(color="red", icon="info-sign")
     ).add_to(m)
 
-map_data = st_folium(m, width=950, height=630)
+# ==============================================================================
+# Add legend to map
+# ==============================================================================
+legend_html = f"""
+{{% macro html() %}}
+<div style="
+    position: fixed;
+    bottom: 50px;
+    left: 50px;
+    width: 160px;
+    height: 190px;
+    background-color: white;
+    border:2px solid grey;
+    z-index:9999;
+    font-size:14px;
+    padding: 10px;
+    ">
+    <b>{data_type} scale (kWh)</b><br>
+    <i style="background:{get_color(vmin)};width:20px;height:10px;display:inline-block;"></i> {vmin:.1f}<br>
+    <i style="background:{get_color(vmin + (vmax - vmin) * 0.2)};width:20px;height:10px;display:inline-block;"></i> {(vmin + (vmax - vmin) * 0.2):.1f}<br>
+    <i style="background:{get_color(vmin + (vmax - vmin) * 0.4)};width:20px;height:10px;display:inline-block;"></i> {(vmin + (vmax - vmin) * 0.4):.1f}<br>
+    <i style="background:{get_color(vmin + (vmax - vmin) * 0.6)};width:20px;height:10px;display:inline-block;"></i> {(vmin + (vmax - vmin) * 0.6):.1f}<br>
+    <i style="background:{get_color(vmin + (vmax - vmin) * 0.8)};width:20px;height:10px;display:inline-block;"></i> {(vmin + (vmax - vmin) * 0.8):.1f}<br>
+    <i style="background:{get_color(vmax)};width:20px;height:10px;display:inline-block;"></i> {vmax:.1f}
+</div>
+{{% endmacro %}}
+"""
+
+legend = MacroElement()
+legend._template = Template(legend_html)
+m.get_root().add_child(legend)
 
 # ==============================================================================
 # Click handler
 # ==============================================================================
+map_data = st_folium(m, width=950, height=630)
+
 if map_data and map_data.get("last_clicked"):
     lat = map_data["last_clicked"]["lat"]
     lon = map_data["last_clicked"]["lng"]
