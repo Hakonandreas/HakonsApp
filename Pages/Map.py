@@ -14,20 +14,23 @@ st.set_page_config(layout="wide")
 st.title("Energy Map – Norway Price Areas (NO1–NO5)")
 
 # ==============================================================================
-# Load GeoJSON
+# Normalize function for GeoJSON and dataframe keys
 # ==============================================================================
-geojson_path = Path(__file__).parent / "data" / "ElSpot_omraade.geojson"
-with open(geojson_path, "r", encoding="utf-8") as f:
-    geojson_data = json.load(f)
-
 def normalize_area_name(name):
     if isinstance(name, str) and name.startswith("N0") and len(name) == 3:
         return "NO" + name[-1]
     return name
 
-def extract_area_name(feature):
-    raw = feature["properties"].get("ElSpotOmr")
-    return normalize_area_name(raw)
+# ==============================================================================
+# Load GeoJSON and inject normalized keys
+# ==============================================================================
+geojson_path = Path(__file__).parent / "data" / "ElSpot_omraade.geojson"
+with open(geojson_path, "r", encoding="utf-8") as f:
+    geojson_data = json.load(f)
+
+for feature in geojson_data["features"]:
+    raw_name = feature["properties"].get("ElSpotOmr")
+    feature["properties"]["ElSpotOmrNorm"] = normalize_area_name(raw_name)
 
 # ==============================================================================
 # Session state
@@ -74,7 +77,7 @@ df_period = df[
 # ==============================================================================
 # Compute mean per price area
 # ==============================================================================
-means_df = df_period.groupby("pricearea")["quantitykwh"].mean().reset_index()
+means_df = df_period.groupby("pricearea", as_index=False)["quantitykwh"].mean()
 means_dict = dict(zip(means_df["pricearea"], means_df["quantitykwh"]))
 st.session_state.area_means = means_dict
 
@@ -83,45 +86,45 @@ if means_df.empty:
     st.stop()
 
 # ==============================================================================
-# Create the map with Choropleth
+# Create map
 # ==============================================================================
 m = folium.Map(location=[63.0, 10.5], zoom_start=5.5)
 
-# Force a visible gradient
+# Thresholds for choropleth
 vmin = means_df["quantitykwh"].min()
 vmax = means_df["quantitykwh"].max()
-thresholds = np.linspace(vmin, vmax, 6).tolist()
+if np.isclose(vmin, vmax):
+    thresholds = [vmin - 1e-6, vmin, vmax + 1e-6]
+else:
+    thresholds = np.linspace(vmin, vmax, 6).tolist()
 
+# Choropleth layer
 folium.Choropleth(
     geo_data=geojson_data,
     name="choropleth",
     data=means_df,
     columns=["pricearea", "quantitykwh"],
-    key_on="feature.properties.ElSpotOmr",
+    key_on="feature.properties.ElSpotOmrNorm",
     fill_color="YlGnBu",
-    fill_opacity=0.7,
-    line_opacity=0.2,
+    fill_opacity=0.6,
+    line_opacity=0.3,
+    line_color="black",
     legend_name=f"{data_type} mean quantity (kWh)",
     threshold_scale=thresholds,
     nan_fill_color="lightgray"
 ).add_to(m)
 
-# Add tooltip with actual values
-def tooltip_function(feature):
-    area = normalize_area_name(feature["properties"]["ElSpotOmr"])
-    value = means_dict.get(area, None)
-    if value is None or pd.isna(value):
-        return f"{area}: No data"
-    return f"{area}: {value:.2f} kWh"
-
+# Tooltip layer
 folium.GeoJson(
     geojson_data,
+    name="tooltips",
     tooltip=folium.GeoJsonTooltip(
-        fields=["ElSpotOmr"],
+        fields=["ElSpotOmrNorm"],
         aliases=["Price area:"],
         labels=True,
         sticky=True
-    )
+    ),
+    style_function=lambda _: {"color": "transparent", "weight": 0, "fillOpacity": 0}
 ).add_to(m)
 
 # Marker for clicked point
@@ -147,11 +150,30 @@ if map_data and map_data.get("last_clicked"):
     for feature in geojson_data["features"]:
         geom = shape(feature["geometry"])
         if isinstance(geom, (Polygon, MultiPolygon)) and geom.contains(point):
-            clicked_area = extract_area_name(feature)
+            clicked_area = feature["properties"]["ElSpotOmrNorm"]
             break
 
-    st.session_state.selected_area = clicked_area
-    st.rerun()
+    if clicked_area != st.session_state.selected_area:
+        st.session_state.selected_area = clicked_area
+        st.rerun()
+
+# ==============================================================================
+# Highlight selected area
+# ==============================================================================
+if st.session_state.selected_area:
+    def highlight_style(feat):
+        is_sel = feat["properties"]["ElSpotOmrNorm"] == st.session_state.selected_area
+        if is_sel:
+            return {"color": "#d62728", "weight": 4, "fillOpacity": 0}
+        return {"color": "transparent", "weight": 0, "fillOpacity": 0}
+
+    folium.GeoJson(
+        geojson_data,
+        name="selected_highlight",
+        style_function=highlight_style,
+        tooltip=None,
+    ).add_to(m)
+    map_data = st_folium(m, width=950, height=630)
 
 # ==============================================================================
 # Display values
@@ -161,7 +183,7 @@ st.dataframe(means_df)
 
 if st.session_state.selected_area:
     val = st.session_state.area_means.get(st.session_state.selected_area, None)
-    if val is not None:
+    if val is not None and not pd.isna(val):
         st.success(f"Selected area: **{st.session_state.selected_area}** → {val:.2f} kWh")
     else:
         st.success(f"Selected area: **{st.session_state.selected_area}** (no data)")
