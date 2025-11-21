@@ -16,3 +16,4 @@ streamlit-plotly-events
 matplotlib
 windrose
 branca
+pathlib
