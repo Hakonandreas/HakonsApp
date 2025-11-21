@@ -5,6 +5,8 @@ from functions.Snow_drift import calculate_snow_drift, plot_wind_rose
 
 st.title("❄️ Snow Drift Explorer")
 
+st.write("Clicked point:", st.session_state.clicked_point)
+
 # Check if coordinates are available
 if "clicked_point" not in st.session_state or st.session_state.clicked_point is None:
     st.warning("No coordinates selected on the map page. Please go back and click a location.")
