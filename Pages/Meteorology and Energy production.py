@@ -1,42 +1,97 @@
 import streamlit as st
 import pandas as pd
-import matplotlib.pyplot as plt
-from functions.snow_drift import calculate_snow_drift, plot_wind_rose
+import plotly.graph_objects as go
 
-st.title("❄️ Snow Drift Explorer")
+# ---------------------------------------------------------
+# Utility: compute sliding window correlation with lag
+# ---------------------------------------------------------
+def sliding_window_corr(series_x, series_y, window, lag):
+    """
+    Compute sliding-window correlation between two aligned series.
+    Positive lag means Y is shifted forward (X leads Y).
+    """
+    y_shifted = series_y.shift(lag)
+    return series_x.rolling(window, center=True).corr(y_shifted)
 
-# Check if coordinates are available
-if "clicked_point" not in st.session_state or st.session_state.clicked_point is None:
-    st.warning("No coordinates selected on the map page. Please go back and click a location.")
-    st.stop()
+# ---------------------------------------------------------
+# Load data
+# ---------------------------------------------------------
+@st.cache_data
+def load_data():
+    weather = download_era5_data(latitude=60.0, longitude=10.0, year=2023)
+    prod = load_elhub_data()
+    cons = load_elhub_consumption()
 
-lat, lon = st.session_state.clicked_point
-st.write(f"Using coordinates: {lat:.3f}, {lon:.3f}")
+    # Resample to hourly means / sums (depends on your data)
+    prod_hourly = prod.resample("H", on="starttime").mean().interpolate()
+    cons_hourly = cons.resample("H", on="starttime").mean().interpolate()
 
-# Year range selector
-start_year, end_year = st.slider(
-    "Select year range",
-    min_value=2000, max_value=2025,
-    value=(2015, 2020)
+    # Merge everything on datetime index
+    df = weather.set_index("time").join(prod_hourly, how="inner", rsuffix="_prod").join(cons_hourly, how="inner", rsuffix="_cons")
+
+    return df
+
+df = load_data()
+
+st.title("Sliding Window Correlation: Weather vs. Energy Production/Consumption")
+st.markdown("""
+Use this dashboard to explore how weather variables correlate with energy production and consumption over time.
+""")
+
+# ---------------------------------------------------------
+# Selectors
+# ---------------------------------------------------------
+weather_cols = ["temperature_2m", "precipitation", "wind_speed_10m", "wind_gusts_10m", "wind_direction_10m"]
+energy_cols = [c for c in df.columns if ("production" in c.lower() or "consumption" in c.lower())]
+
+meta_var = st.selectbox("Meteorological variable:", weather_cols)
+energy_var = st.selectbox("Energy variable:", energy_cols)
+
+window = st.slider("Window length", min_value=24, max_value=500, value=100, step=1)
+lag = st.slider("Lag (hours)", min_value=-72, max_value=72, value=0, step=1)
+
+# ---------------------------------------------------------
+# Compute SWC
+# ---------------------------------------------------------
+swc = sliding_window_corr(df[meta_var], df[energy_var], window=window, lag=lag)
+
+# ---------------------------------------------------------
+# Plotly visualization
+# ---------------------------------------------------------
+fig = go.Figure()
+
+# Top plot: meteorology
+fig.add_trace(go.Scatter(
+    x=df.index, y=df[meta_var], name=meta_var,
+    line=dict(width=1)
+))
+
+# Energy plot (secondary axis)
+fig.add_trace(go.Scatter(
+    x=df.index, y=df[energy_var], name=energy_var,
+    line=dict(width=1), yaxis="y2"
+))
+
+# SWC plot
+fig.add_trace(go.Scatter(
+    x=df.index, y=swc, name="SWC",
+    line=dict(width=2, color="red")
+))
+
+# Layout
+fig.update_layout(
+    height=600,
+    title=f"Sliding Window Correlation (window={window}, lag={lag})",
+    xaxis=dict(title="Time"),
+    yaxis=dict(title=meta_var),
+    yaxis2=dict(title=energy_var, overlaying="y", side="right"),
+    hovermode="x unified"
 )
 
-# Define July–June year boundaries
-years = range(start_year, end_year + 1)
-results = []
+st.plotly_chart(fig, use_container_width=True)
 
-for y in years:
-    start_date = pd.Timestamp(year=y, month=7, day=1)
-    end_date = pd.Timestamp(year=y+1, month=6, day=30)
-    drift = calculate_snow_drift(lat, lon, start_date, end_date)
-    results.append({"year": f"{y}-{y+1}", "snow_drift": drift})
-
-df = pd.DataFrame(results)
-
-# Plot snow drift per year
-st.write("### Annual Snow Drift (July–June)")
-st.bar_chart(df.set_index("year"))
-
-# Plot wind rose
-st.write("### Wind Rose")
-fig = plot_wind_rose(lat, lon, start_year, end_year)
-st.pyplot(fig)
+# Summary
+st.subheader("Correlation summary")
+st.write(f"Average SWC: **{swc.mean():.3f}**")
+st.write(f"Maximum SWC: **{swc.max():.3f}**")
+st.write(f"Minimum SWC: **{swc.min():.3f}**")
