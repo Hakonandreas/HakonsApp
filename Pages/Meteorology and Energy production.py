@@ -1,97 +1,138 @@
 import streamlit as st
 import pandas as pd
 import plotly.graph_objects as go
+from functions.elhub_utils import load_elhub_data, load_elhub_consumption
+from functions.weather_utils import download_era5_data
 
-# ---------------------------------------------------------
-# Utility: compute sliding window correlation with lag
-# ---------------------------------------------------------
+
+# -----------------------------
+# Sliding Window Correlation
+# -----------------------------
 def sliding_window_corr(series_x, series_y, window, lag):
-    """
-    Compute sliding-window correlation between two aligned series.
-    Positive lag means Y is shifted forward (X leads Y).
-    """
-    y_shifted = series_y.shift(lag)
-    return series_x.rolling(window, center=True).corr(y_shifted)
+    shifted_y = series_y.shift(lag)
+    return series_x.rolling(window=window, center=True).corr(shifted_y)
 
-# ---------------------------------------------------------
-# Load data
-# ---------------------------------------------------------
+
+# -----------------------------
+# Load and merge using YOUR functions
+# -----------------------------
 @st.cache_data
-def load_data():
-    weather = download_era5_data(latitude=60.0, longitude=10.0, year=2023)
-    prod = load_elhub_data()
-    cons = load_elhub_consumption()
+def load_all_data():
 
-    # Resample to hourly means / sums (depends on your data)
-    prod_hourly = prod.resample("H", on="starttime").mean().interpolate()
-    cons_hourly = cons.resample("H", on="starttime").mean().interpolate()
+    # Load ERA5 weather (uses your weather_utils function)
+    weather = download_era5_data(
+        latitude=60.0,
+        longitude=10.0,
+        year=2023
+    )
 
-    # Merge everything on datetime index
-    df = weather.set_index("time").join(prod_hourly, how="inner", rsuffix="_prod").join(cons_hourly, how="inner", rsuffix="_cons")
+    # Load Elhub data (your elhub_utils functions)
+    prod_df = load_elhub_data()
+    cons_df = load_elhub_consumption()
+
+    # Resample Elhub to hourly
+    prod_hourly = (
+        prod_df.set_index("starttime")
+        .resample("H")
+        .mean()
+        .interpolate()
+    )
+
+    cons_hourly = (
+        cons_df.set_index("starttime")
+        .resample("H")
+        .mean()
+        .interpolate()
+    )
+
+    # Merge all time series on hourly datetime index
+    df = (
+        weather.set_index("time")
+        .join(prod_hourly, how="inner", rsuffix="_prod")
+        .join(cons_hourly, how="inner", rsuffix="_cons")
+    )
 
     return df
 
-df = load_data()
 
-st.title("Sliding Window Correlation: Weather vs. Energy Production/Consumption")
-st.markdown("""
-Use this dashboard to explore how weather variables correlate with energy production and consumption over time.
-""")
+# -----------------------------
+# Streamlit UI
+# -----------------------------
+st.title("Meteorology & Energy: Sliding Window Correlation Explorer")
 
-# ---------------------------------------------------------
-# Selectors
-# ---------------------------------------------------------
-weather_cols = ["temperature_2m", "precipitation", "wind_speed_10m", "wind_gusts_10m", "wind_direction_10m"]
-energy_cols = [c for c in df.columns if ("production" in c.lower() or "consumption" in c.lower())]
+df = load_all_data()
 
-meta_var = st.selectbox("Meteorological variable:", weather_cols)
-energy_var = st.selectbox("Energy variable:", energy_cols)
+weather_vars = [
+    "temperature_2m",
+    "precipitation",
+    "wind_speed_10m",
+    "wind_gusts_10m",
+    "wind_direction_10m"
+]
 
-window = st.slider("Window length", min_value=24, max_value=500, value=100, step=1)
-lag = st.slider("Lag (hours)", min_value=-72, max_value=72, value=0, step=1)
+energy_vars = [c for c in df.columns if c not in weather_vars]
 
-# ---------------------------------------------------------
+meta_var = st.selectbox("Select meteorological variable:", weather_vars)
+energy_var = st.selectbox("Select energy variable:", energy_vars)
+
+window = st.slider("Window length (hours)", 24, 500, 120)
+lag = st.slider("Lag (hours)", -72, 72, 0)
+
+
+# -----------------------------
 # Compute SWC
-# ---------------------------------------------------------
-swc = sliding_window_corr(df[meta_var], df[energy_var], window=window, lag=lag)
+# -----------------------------
+swc = sliding_window_corr(
+    df[meta_var],
+    df[energy_var],
+    window=window,
+    lag=lag
+)
 
-# ---------------------------------------------------------
-# Plotly visualization
-# ---------------------------------------------------------
+
+# -----------------------------
+# Plot
+# -----------------------------
 fig = go.Figure()
 
-# Top plot: meteorology
 fig.add_trace(go.Scatter(
-    x=df.index, y=df[meta_var], name=meta_var,
+    x=df.index,
+    y=df[meta_var],
+    name=f"Weather: {meta_var}",
     line=dict(width=1)
 ))
 
-# Energy plot (secondary axis)
 fig.add_trace(go.Scatter(
-    x=df.index, y=df[energy_var], name=energy_var,
-    line=dict(width=1), yaxis="y2"
+    x=df.index,
+    y=df[energy_var],
+    name=f"Energy: {energy_var}",
+    yaxis="y2",
+    line=dict(width=1)
 ))
 
-# SWC plot
 fig.add_trace(go.Scatter(
-    x=df.index, y=swc, name="SWC",
+    x=df.index,
+    y=swc,
+    name="Sliding Window Corr",
     line=dict(width=2, color="red")
 ))
 
-# Layout
 fig.update_layout(
-    height=600,
     title=f"Sliding Window Correlation (window={window}, lag={lag})",
+    height=650,
+    hovermode="x unified",
     xaxis=dict(title="Time"),
     yaxis=dict(title=meta_var),
-    yaxis2=dict(title=energy_var, overlaying="y", side="right"),
-    hovermode="x unified"
+    yaxis2=dict(
+        title=energy_var,
+        overlaying="y",
+        side="right"
+    )
 )
 
 st.plotly_chart(fig, use_container_width=True)
 
-# Summary
-st.subheader("Correlation summary")
-st.write(f"Average SWC: **{swc.mean():.3f}**")
-st.write(f"Maximum SWC: **{swc.max():.3f}**")
-st.write(f"Minimum SWC: **{swc.min():.3f}**")
+st.subheader("Correlation Summary")
+st.write(f"**Mean SWC:** {swc.mean():.3f}")
+st.write(f"**Max SWC:** {swc.max():.3f}")
+st.write(f"**Min SWC:** {swc.min():.3f}")
