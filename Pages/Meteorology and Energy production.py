@@ -19,33 +19,26 @@ def sliding_window_corr(series_x, series_y, window, lag):
 @st.cache_data
 def load_all_data():
 
-    # Load ERA5 weather (uses your weather_utils function)
+    # Load ERA5 weather
     weather = download_era5_data(
         latitude=60.0,
         longitude=10.0,
         year=2023
     )
 
-    # Load Elhub data (your elhub_utils functions)
+    # Load Elhub data
     prod_df = load_elhub_data()
     cons_df = load_elhub_consumption()
 
-    # Resample Elhub to hourly
-    prod_hourly = (
-        prod_df.set_index("starttime")
-        .resample("H")
-        .mean()
-        .interpolate()
-    )
+    # --- FIX: convert energy columns to numeric only ---
+    prod_df_numeric = prod_df.set_index("starttime").apply(pd.to_numeric, errors="coerce")
+    cons_df_numeric = cons_df.set_index("starttime").apply(pd.to_numeric, errors="coerce")
 
-    cons_hourly = (
-        cons_df.set_index("starttime")
-        .resample("H")
-        .mean()
-        .interpolate()
-    )
+    # Resample to hourly (now safe because all columns numeric)
+    prod_hourly = prod_df_numeric.resample("H").mean().interpolate()
+    cons_hourly = cons_df_numeric.resample("H").mean().interpolate()
 
-    # Merge all time series on hourly datetime index
+    # Merge with weather
     df = (
         weather.set_index("time")
         .join(prod_hourly, how="inner", rsuffix="_prod")
@@ -53,6 +46,7 @@ def load_all_data():
     )
 
     return df
+
 
 
 # -----------------------------
