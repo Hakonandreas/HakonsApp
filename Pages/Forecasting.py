@@ -22,26 +22,26 @@ def sanitize_exog(df: pd.DataFrame) -> pd.DataFrame:
 
     return df_clean
 
-def fit_sarimax(y, exog, order, seasonal_order, trend):
+def fit_sarimax(y, exog, order, seasonal_order):
     mod = sm.tsa.statespace.SARIMAX(
         endog=y,
         exog=exog,
         order=order,
         seasonal_order=seasonal_order,
-        trend=trend,
+        trend='c',          # fixed constant trend
         enforce_stationarity=True,
         enforce_invertibility=True,
     )
     res = mod.fit(disp=False)
     return mod, res
 
-def refit_and_filter_full(y_full, exog_full, params, order, seasonal_order, trend):
+def refit_and_filter_full(y_full, exog_full, params, order, seasonal_order):
     mod_full = sm.tsa.statespace.SARIMAX(
         endog=y_full,
         exog=exog_full,
         order=order,
         seasonal_order=seasonal_order,
-        trend=trend,
+        trend='c',          # fixed constant trend
         enforce_stationarity=True,
         enforce_invertibility=True,
     )
@@ -73,8 +73,8 @@ df = load_elhub_consumption() if dataset_choice == "Consumption" else load_elhub
 # Fixed target
 target_col = "quantitykwh"
 
-# Sidebar: exogenous variable selection (excluding _id and target)
-exog_options = [col for col in df.columns if col not in [target_col, "_id"]]
+# Sidebar: exogenous variable selection (excluding _id, date, starttime)
+exog_options = [col for col in df.columns if col not in [target_col, "_id", "date", "starttime"]]
 exog_cols = st.sidebar.multiselect("Select exogenous variables", options=exog_options)
 
 # Sidebar: timeframe
@@ -82,16 +82,14 @@ st.sidebar.header("Timeframe")
 train_end = st.sidebar.text_input("Training end date", value=str(df.index[int(len(df)*0.7)])[:10])
 dynamic_start = st.sidebar.text_input("Dynamic forecast start date", value=train_end)
 
-# Sidebar: SARIMAX parameters
+# Sidebar: simplified SARIMAX parameters
 st.sidebar.header("SARIMAX Parameters")
-p = st.sidebar.number_input("p", 0, 5, 1)
-d = st.sidebar.number_input("d", 0, 2, 1)
-q = st.sidebar.number_input("q", 0, 5, 1)
-P = st.sidebar.number_input("P (seasonal)", 0, 5, 1)
-D = st.sidebar.number_input("D (seasonal)", 0, 2, 1)
-Q = st.sidebar.number_input("Q (seasonal)", 0, 5, 1)
+p = st.sidebar.number_input("AR order (p)", 0, 5, 1)
+d = st.sidebar.number_input("Differencing (d)", 0, 2, 1)
+q = st.sidebar.number_input("MA order (q)", 0, 5, 1)
+P = st.sidebar.number_input("Seasonal AR (P)", 0, 5, 1)
+Q = st.sidebar.number_input("Seasonal MA (Q)", 0, 5, 1)
 m = st.sidebar.number_input("Seasonal period (m)", 1, 365, 12)
-trend = st.sidebar.selectbox("Trend", options=[None, 'n', 'c', 't', 'ct'], index=2)
 
 # --- Prepare data ---
 y_train = df[target_col].loc[:train_end]
@@ -100,8 +98,8 @@ exog_train = sanitize_exog(df[exog_cols].loc[:train_end]) if exog_cols else None
 exog_full = sanitize_exog(df[exog_cols]) if exog_cols else None
 
 # --- Fit and filter ---
-mod_train, res_train = fit_sarimax(y_train, exog_train, (p,d,q), (P,D,Q,m), trend)
-mod_full, res_full = refit_and_filter_full(y_full, exog_full, res_train.params, (p,d,q), (P,D,Q,m), trend)
+mod_train, res_train = fit_sarimax(y_train, exog_train, (p,d,q), (P,1,Q,m))  # D fixed at 1
+mod_full, res_full = refit_and_filter_full(y_full, exog_full, res_train.params, (p,d,q), (P,1,Q,m))
 
 # --- Predictions ---
 preds = make_predictions(res_full, dynamic_start=pd.to_datetime(dynamic_start), start=train_end)
