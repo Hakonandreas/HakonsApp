@@ -17,3 +17,4 @@ matplotlib
 windrose
 branca
 pathlib
+typing
