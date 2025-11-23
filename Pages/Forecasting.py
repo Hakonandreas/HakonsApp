@@ -3,17 +3,24 @@ import pandas as pd
 import matplotlib.pyplot as plt
 import statsmodels.api as sm
 
-# Import your Elhub loaders
-from functions.elhub_utils import load_elhub_data, load_elhub_consumption
+from functions.elhub_utils import load_elhub_data
 
-# --- Helpers ---
-def list_target_columns(df: pd.DataFrame) -> list:
-    return list(df.columns)
+# --- Helper functions ---
+def sanitize_exog(df: pd.DataFrame) -> pd.DataFrame:
+    df_clean = df.copy()
 
-def split_train_test(df: pd.DataFrame, target_col: str, train_end: str):
-    y_train = df[target_col].loc[:train_end]
-    y_full = df[target_col]
-    return y_train, y_full
+    # Drop datetime columns
+    for col in df_clean.select_dtypes(include=['datetime', 'datetimetz']).columns:
+        df_clean.drop(columns=col, inplace=True)
+
+    # Encode categorical columns
+    for col in df_clean.select_dtypes(include=['object', 'category']).columns:
+        df_clean = pd.get_dummies(df_clean, columns=[col], drop_first=True)
+
+    # Convert all to numeric and drop NaNs
+    df_clean = df_clean.apply(pd.to_numeric, errors='coerce').dropna(axis=1)
+
+    return df_clean
 
 def fit_sarimax(y, exog, order, seasonal_order, trend):
     mod = sm.tsa.statespace.SARIMAX(
@@ -56,21 +63,25 @@ def make_predictions(res, dynamic_start, start=None, end=None):
     }
 
 # --- Streamlit UI ---
-st.title("SARIMAX Forecasting of Energy Production/Consumption")
+st.set_page_config(page_title="Energy Forecasting", layout="wide")
+st.title("🔮 SARIMAX Forecasting of Energy Consumption")
 
 # Load Elhub data
-df = load_elhub_data()  # or load_elhub_consumption() depending on your dataset
+df = load_elhub_data()
+target_col = "quantitykwh"
 
-# Sidebar: target and exogenous selection
-target_col = st.sidebar.selectbox("Target", options=list_target_columns(df))
-exog_options = [c for c in df.columns if c != target_col]
-exog_cols = st.sidebar.multiselect("Exogenous variables", options=exog_options)
+# Sidebar: exogenous variable selection
+st.sidebar.header("Exogenous Variables")
+exog_options = [col for col in df.columns if col != target_col]
+exog_cols = st.sidebar.multiselect("Select exogenous variables", options=exog_options)
 
 # Sidebar: timeframe
+st.sidebar.header("Timeframe")
 train_end = st.sidebar.text_input("Training end date", value=str(df.index[int(len(df)*0.7)])[:10])
 dynamic_start = st.sidebar.text_input("Dynamic forecast start date", value=train_end)
 
 # Sidebar: SARIMAX parameters
+st.sidebar.header("SARIMAX Parameters")
 p = st.sidebar.number_input("p", 0, 5, 1)
 d = st.sidebar.number_input("d", 0, 2, 1)
 q = st.sidebar.number_input("q", 0, 5, 1)
@@ -80,11 +91,13 @@ Q = st.sidebar.number_input("Q (seasonal)", 0, 5, 1)
 m = st.sidebar.number_input("Seasonal period (m)", 1, 365, 12)
 trend = st.sidebar.selectbox("Trend", options=[None, 'n', 'c', 't', 'ct'], index=2)
 
-# --- Train and fit ---
-y_train, y_full = split_train_test(df, target_col, train_end)
-exog_train = df[exog_cols].loc[:train_end] if exog_cols else None
-exog_full = df[exog_cols] if exog_cols else None
+# --- Prepare data ---
+y_train = df[target_col].loc[:train_end]
+y_full = df[target_col]
+exog_train = sanitize_exog(df[exog_cols].loc[:train_end]) if exog_cols else None
+exog_full = sanitize_exog(df[exog_cols]) if exog_cols else None
 
+# --- Fit and filter ---
 mod_train, res_train = fit_sarimax(y_train, exog_train, (p,d,q), (P,D,Q,m), trend)
 mod_full, res_full = refit_and_filter_full(y_full, exog_full, res_train.params, (p,d,q), (P,D,Q,m), trend)
 
@@ -92,6 +105,7 @@ mod_full, res_full = refit_and_filter_full(y_full, exog_full, res_train.params, 
 preds = make_predictions(res_full, dynamic_start=pd.to_datetime(dynamic_start), start=train_end)
 
 # --- Plot ---
+st.header("📈 Forecast Plot")
 fig, ax = plt.subplots(figsize=(12,5))
 df[target_col].plot(ax=ax, style='o', label='Observed')
 
@@ -103,12 +117,13 @@ preds["dynamic_mean"].plot(ax=ax, style='g', label=f'Dynamic (from {dynamic_star
 ci2 = preds["dynamic_ci"]
 ax.fill_between(ci2.index, ci2.iloc[:,0], ci2.iloc[:,1], color='g', alpha=0.15)
 
-ax.set_title(f"{target_col} forecast")
+ax.set_title("Forecast of quantitykwh")
 ax.set_xlabel("Date")
-ax.set_ylabel(target_col)
+ax.set_ylabel("kWh")
 ax.legend()
 st.pyplot(fig)
 
 # --- Diagnostics ---
-st.subheader("Model summary")
+st.header("🧪 Model Diagnostics")
+st.subheader("SARIMAX Summary")
 st.text(res_train.summary().as_text())
