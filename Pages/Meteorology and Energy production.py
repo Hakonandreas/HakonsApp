@@ -33,7 +33,7 @@ def load_all_data(year=2023, lat=60.0, lon=10.0):
     prod_df["starttime"] = pd.to_datetime(prod_df["starttime"], utc=True)
     cons_df["starttime"] = pd.to_datetime(cons_df["starttime"], utc=True)
 
-    # --- Drop only _id if present (per your request) ---
+    # --- Drop only _id if present ---
     if "_id" in prod_df.columns:
         prod_df = prod_df.drop(columns=["_id"])
     if "_id" in cons_df.columns:
@@ -47,23 +47,23 @@ def load_all_data(year=2023, lat=60.0, lon=10.0):
     prod_hourly = prod_df_numeric.resample("h").mean().interpolate()
     cons_hourly = cons_df_numeric.resample("h").mean().interpolate()
 
-    # --- Save lists of clean variable names (displayed to user) ---
+    # --- Save lists of clean variable names ---
     prod_vars = prod_hourly.columns.tolist()
     cons_vars = cons_hourly.columns.tolist()
 
-    # --- To avoid column-overlap errors, add suffixes to the Elhub hourly dataframes for merging ---
+    # --- Add suffixes to avoid overlap ---
     prod_hourly_suff = prod_hourly.add_suffix("_prod")
     cons_hourly_suff = cons_hourly.add_suffix("_cons")
 
-    # --- Merge: weather + production + consumption (inner join on time) ---
+    # --- Merge weather + production + consumption ---
     df = (
         weather.set_index("time")
         .join(prod_hourly_suff, how="inner")
         .join(cons_hourly_suff, how="inner")
     )
 
-    # Return merged df plus original variable lists (unsuffixed names for display)
     return df, prod_vars, cons_vars, weather
+
 
 # -----------------------------
 # Streamlit UI
@@ -74,13 +74,12 @@ st.title("Meteorology & Energy — Sliding Window Correlation (Streamlit + Plotl
 try:
     st.image(screenshot_path, caption="Screenshot (uploaded)", use_column_width=True)
 except Exception:
-    # ignore if file absent
     pass
 
 # Load data (cached)
 df, prod_vars, cons_vars, weather_df = load_all_data()
 
-# Meteorological variables to offer (explicit list to avoid offering internal metadata)
+# Meteorological variables to offer
 weather_vars = [
     "temperature_2m",
     "precipitation",
@@ -90,26 +89,22 @@ weather_vars = [
 ]
 
 # -----------------------------
-# Top UI: data type and meteo selector side-by-side
+# 1. Data type selector (alone)
 # -----------------------------
-left, right = st.columns([1, 2])
+st.write("### Data Type")
+data_type = st.radio("", ["Production", "Consumption"], horizontal=True)
 
-with left:
-    st.write("### Data Type")
-    data_type = st.radio("", ["Production", "Consumption"], horizontal=True)
+# -----------------------------
+# 2. Meteo + Energy side-by-side
+# -----------------------------
+col_meteo, col_energy = st.columns([1, 2])
 
-with right:
+with col_meteo:
     st.write("### Meteorology Variable")
     meta_var = st.selectbox("Select meteorological variable:", weather_vars)
 
-# -----------------------------
-# Energy variable selector (side-by-side with controls)
-# -----------------------------
-col_energy, col_controls = st.columns([2, 1])
-
 with col_energy:
     st.write("### Energy Variable")
-
     if data_type == "Production":
         if len(prod_vars) == 0:
             st.error("No production variables available in production dataset.")
@@ -123,10 +118,12 @@ with col_energy:
         selected_energy_display = st.selectbox("Select consumption variable:", cons_vars)
         energy_internal_col = f"{selected_energy_display}_cons"
 
-with col_controls:
-    st.write("### SWC parameters")
-    window = st.slider("Window length (hours)", 24, 500, 120)
-    lag = st.slider("Lag (hours)", -72, 72, 0)
+# -----------------------------
+# 3. SWC parameters (alone)
+# -----------------------------
+st.write("### SWC Parameters")
+window = st.slider("Window length (hours)", 24, 500, 120)
+lag = st.slider("Lag (hours)", -72, 72, 0)
 
 # -----------------------------
 # Basic checks
@@ -145,7 +142,7 @@ if energy_internal_col not in df.columns:
 swc = sliding_window_corr(df[meta_var], df[energy_internal_col], window=window, lag=lag)
 
 # -----------------------------
-# Plot with Plotly: meteorology (left axis), energy (right axis), SWC (separate line)
+# Plot with Plotly
 # -----------------------------
 fig = go.Figure()
 
@@ -166,7 +163,7 @@ fig.add_trace(go.Scatter(
     line=dict(width=1)
 ))
 
-# SWC series (standalone)
+# SWC series
 fig.add_trace(go.Scatter(
     x=df.index,
     y=swc,
@@ -187,17 +184,15 @@ fig.update_layout(
 st.plotly_chart(fig, use_container_width=True)
 
 # -----------------------------
-# Summary Stats & quick checks (for your notebook logging)
+# Summary Stats & quick checks
 # -----------------------------
-st.subheader("Correlation Summary")
-st.write(f"**Mean SWC:** {float(swc.mean()):.3f}")
-st.write(f"**Max SWC:** {float(swc.max()):.3f}")
-st.write(f"**Min SWC:** {float(swc.min()):.3f}")
+with st.expander("Correlation Summary & Data Preview"):
+    st.write(f"**Mean SWC:** {float(swc.mean()):.3f}")
+    st.write(f"**Max SWC:** {float(swc.max()):.3f}")
+    st.write(f"**Min SWC:** {float(swc.min()):.3f}")
 
-st.write("---")
-st.markdown("### Data inspection")
-st.write("Merged dataframe preview (first rows):")
-st.dataframe(df.head())
+    st.write("---")
+    st.markdown("### Data inspection")
+    st.dataframe(df.head())
 
-# Small helper: expose the internal col names so you can copy them to notebook if needed
-st.write("Internal column used for energy (suffixed):", energy_internal_col)
+    st.write("Internal column used for energy (suffixed):", energy_internal_col)
