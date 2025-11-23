@@ -17,7 +17,11 @@ def sanitize_exog(df: pd.DataFrame) -> pd.DataFrame:
     for col in df_clean.select_dtypes(include=['object', 'category']).columns:
         df_clean = pd.get_dummies(df_clean, columns=[col], drop_first=True)
 
-    # Convert all to numeric and drop NaNs
+    # Convert booleans to integers
+    for col in df_clean.select_dtypes(include=['bool']).columns:
+        df_clean[col] = df_clean[col].astype(int)
+
+    # Ensure all numeric
     df_clean = df_clean.apply(pd.to_numeric, errors='coerce').dropna(axis=1)
 
     return df_clean
