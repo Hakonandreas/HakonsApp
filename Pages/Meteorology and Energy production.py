@@ -1,167 +1,72 @@
 import streamlit as st
-import pandas as pd
-import plotly.graph_objects as go
 from functions.elhub_utils import load_elhub_data, load_elhub_consumption
 from functions.weather_utils import download_era5_data
 
+st.title("Energy & Meteorology Data Explorer")
 
-# -----------------------------
-# Sliding Window Correlation
-# -----------------------------
-def sliding_window_corr(series_x, series_y, window, lag):
-    shifted_y = series_y.shift(lag)
-    return series_x.rolling(window=window, center=True).corr(shifted_y)
-
-
-# -----------------------------
-# Load and merge using existing functions
-# -----------------------------
-@st.cache_data
-def load_all_data():
-
-    # Load ERA5
-    weather = download_era5_data(
-        latitude=60.0,
-        longitude=10.0,
-        year=2023
-    )
-
-    # Load Elhub data
-    prod_df = load_elhub_data()
-    cons_df = load_elhub_consumption()
-
-    # Time zone fix
-    weather["time"] = pd.to_datetime(weather["time"], utc=True)
-    prod_df["starttime"] = pd.to_datetime(prod_df["starttime"], utc=True)
-    cons_df["starttime"] = pd.to_datetime(cons_df["starttime"], utc=True)
-
-    # Convert to numeric
-    prod_df_numeric = prod_df.set_index("starttime").apply(pd.to_numeric, errors="coerce")
-    cons_df_numeric = cons_df.set_index("starttime").apply(pd.to_numeric, errors="coerce")
-
-    # Resample
-    prod_hourly = prod_df_numeric.resample("H").mean().interpolate()
-    cons_hourly = cons_df_numeric.resample("H").mean().interpolate()
-
-    # Merge all datasets
-    df = (
-        weather.set_index("time")
-        .join(prod_hourly, how="inner", rsuffix="_prod")
-        .join(cons_hourly, how="inner", rsuffix="_cons")
-    )
-
-    return df
-
-
-# -----------------------------
-# Streamlit UI
-# -----------------------------
-st.title("Meteorology & Energy: Sliding Window Correlation Explorer")
-
-df = load_all_data()
-
-weather_vars = [
-    "temperature_2m",
-    "precipitation",
-    "wind_speed_10m",
-    "wind_gusts_10m",
-    "wind_direction_10m"
-]
-
-# Define energy variables
-prod_vars = [col for col in df.columns if col.endswith("_prod")]
-cons_vars = [col for col in df.columns if col.endswith("_cons")]
-
-
-# -----------------------------
-# NEW UI: Radio toggle + side-by-side selectors
-# -----------------------------
-st.write("### Select Data Type")
-data_type = st.radio(
-    "",
-    ["Production", "Consumption"],
-    horizontal=True
-)
-
-col1, col2 = st.columns(2)
-
+# --- CATEGORY SELECTION -----------------------------------------------------
+col1, col2 = st.columns([1, 3])
 with col1:
-    st.write("### Meteorology Variable")
-    meta_var = st.selectbox("Select meteorological variable:", weather_vars)
-
-with col2:
-    st.write("### Energy Variable")
-    if data_type == "Production":
-        energy_var = st.selectbox("Select production variable:", prod_vars)
-    else:
-        energy_var = st.selectbox("Select consumption variable:", cons_vars)
-
-
-# -----------------------------
-# Additional controls
-# -----------------------------
-window = st.slider("Window length (hours)", 24, 500, 120)
-lag = st.slider("Lag (hours)", -72, 72, 0)
-
-
-# -----------------------------
-# Compute SWC
-# -----------------------------
-swc = sliding_window_corr(
-    df[meta_var],
-    df[energy_var],
-    window=window,
-    lag=lag
-)
-
-
-# -----------------------------
-# Plot
-# -----------------------------
-fig = go.Figure()
-
-fig.add_trace(go.Scatter(
-    x=df.index,
-    y=df[meta_var],
-    name=f"Weather: {meta_var}",
-    line=dict(width=1)
-))
-
-fig.add_trace(go.Scatter(
-    x=df.index,
-    y=df[energy_var],
-    name=f"Energy: {energy_var}",
-    yaxis="y2",
-    line=dict(width=1)
-))
-
-fig.add_trace(go.Scatter(
-    x=df.index,
-    y=swc,
-    name="Sliding Window Corr",
-    line=dict(width=2, color="red")
-))
-
-fig.update_layout(
-    title=f"Sliding Window Correlation (window={window}, lag={lag})",
-    height=650,
-    hovermode="x unified",
-    xaxis=dict(title="Time"),
-    yaxis=dict(title=meta_var),
-    yaxis2=dict(
-        title=energy_var,
-        overlaying="y",
-        side="right"
+    data_type = st.radio(
+        "Select data type:",
+        ["Production", "Consumption"],
+        horizontal=True
     )
-)
 
-st.plotly_chart(fig, use_container_width=True)
+st.write("---")
 
+# --- LOAD DATA BASED ON SELECTION ------------------------------------------
+data = None
+variables = []
 
-# -----------------------------
-# Summary
-# -----------------------------
-st.subheader("Correlation Summary")
-st.write(f"**Mean SWC:** {swc.mean():.3f}")
-st.write(f"**Max SWC:** {swc.max():.3f}")
-st.write(f"**Min SWC:** {swc.min():.3f}")
+if data_type == "Consumption":
+    try:
+        data = load_elhub_consumption()
+        variables = data.columns.tolist()
+    except Exception as e:
+        st.error(f"Could not load consumption data: {e}")
+
+elif data_type == "Production":
+    try:
+        data = load_elhub_data()
+
+        # production datasets sometimes only include metadata → check columns
+        if data is not None and len(data.columns) > 1:
+            variables = data.columns.tolist()
+        else:
+            variables = []
+    except Exception as e:
+        st.error(f"Could not load production data: {e}")
+
+# --- UI WHEN DATA IS NOT AVAILABLE -----------------------------------------
+if data is None:
+    st.warning("No data available for this choice.")
+    st.stop()
+
+if len(variables) == 0:
+    st.warning("No variables available for this selection.")
+    st.stop()
+
+# --- VARIABLE SELECTORS SIDE BY SIDE ---------------------------------------
+st.subheader("Select variable(s)")
+
+left, right = st.columns(2)
+
+with left:
+    selected_energy_var = st.selectbox(
+        "Energy variable:",
+        variables
+    )
+
+with right:
+    meteo_choice = st.checkbox("Load meteorology variable?")
+
+if meteo_choice:
+    meteo_var = st.selectbox(
+        "Meteorology variable:",
+        ["temperature", "wind_speed", "solar_radiation"],
+    )
+
+# --- DISPLAY PREVIEW --------------------------------------------------------
+st.write("### Data preview")
+st.dataframe(data.head())
