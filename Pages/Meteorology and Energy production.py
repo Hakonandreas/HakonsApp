@@ -4,69 +4,81 @@ from functions.weather_utils import download_era5_data
 
 st.title("Energy & Meteorology Data Explorer")
 
-# --- CATEGORY SELECTION -----------------------------------------------------
-col1, col2 = st.columns([1, 3])
-with col1:
+# ---------------------------------------------------------
+# CATEGORY SELECTION (side-by-side)
+# ---------------------------------------------------------
+colA, colB = st.columns([1, 4])
+with colA:
     data_type = st.radio(
-        "Select data type:",
+        "Data Type",
         ["Production", "Consumption"],
         horizontal=True
     )
 
 st.write("---")
 
-# --- LOAD DATA BASED ON SELECTION ------------------------------------------
+# ---------------------------------------------------------
+# LOAD DATA
+# ---------------------------------------------------------
 data = None
-variables = []
 
 if data_type == "Consumption":
     try:
         data = load_elhub_consumption()
-        variables = data.columns.tolist()
     except Exception as e:
-        st.error(f"Could not load consumption data: {e}")
+        st.error(f"Failed to load consumption data: {e}")
+        st.stop()
 
 elif data_type == "Production":
     try:
         data = load_elhub_data()
-
-        # production datasets sometimes only include metadata → check columns
-        if data is not None and len(data.columns) > 1:
-            variables = data.columns.tolist()
-        else:
-            variables = []
+        # Remove _id column if present
+        if "_id" in data.columns:
+            data = data.drop(columns=["_id"])
     except Exception as e:
-        st.error(f"Could not load production data: {e}")
+        st.error(f"Failed to load production data: {e}")
+        st.stop()
 
-# --- UI WHEN DATA IS NOT AVAILABLE -----------------------------------------
-if data is None:
-    st.warning("No data available for this choice.")
+if data is None or data.empty:
+    st.warning("No data available for the selected category.")
     st.stop()
 
-if len(variables) == 0:
-    st.warning("No variables available for this selection.")
+energy_vars = data.columns.tolist()
+
+# ---------------------------------------------------------
+# LOAD METEOROLOGY DATA (always)
+# ---------------------------------------------------------
+try:
+    meteo_df = download_era5_data()
+    meteo_vars = meteo_df.columns.tolist()
+except Exception as e:
+    st.error(f"Failed to load meteorology data: {e}")
     st.stop()
 
-# --- VARIABLE SELECTORS SIDE BY SIDE ---------------------------------------
-st.subheader("Select variable(s)")
+# ---------------------------------------------------------
+# VARIABLE SELECTORS (side-by-side)
+# ---------------------------------------------------------
+st.subheader("Select Variables")
 
-left, right = st.columns(2)
+col1, col2 = st.columns(2)
 
-with left:
+with col1:
     selected_energy_var = st.selectbox(
-        "Energy variable:",
-        variables
+        "Energy Variable",
+        energy_vars
     )
 
-with right:
-    meteo_choice = st.checkbox("Load meteorology variable?")
-
-if meteo_choice:
-    meteo_var = st.selectbox(
-        "Meteorology variable:",
-        ["temperature", "wind_speed", "solar_radiation"],
+with col2:
+    selected_meteo_var = st.selectbox(
+        "Meteorology Variable",
+        meteo_vars
     )
 
-# --- DISPLAY PREVIEW --------------------------------------------------------
-st.write("### Data preview")
-st.dataframe(data.head())
+# ---------------------------------------------------------
+# PREVIEW
+# ---------------------------------------------------------
+st.write("### Energy Data Preview")
+st.dataframe(data[[selected_energy_var]].head())
+
+st.write("### Meteorology Data Preview")
+st.dataframe(meteo_df[[selected_meteo_var]].head())
