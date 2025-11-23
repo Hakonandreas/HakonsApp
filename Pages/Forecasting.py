@@ -28,7 +28,18 @@ def sanitize_exog(df: pd.DataFrame) -> pd.DataFrame:
 
 @st.cache_data
 def get_data(dataset_choice):
-    return load_elhub_consumption() if dataset_choice == "Consumption" else load_elhub_data()
+    if dataset_choice == "Consumption":
+        df = load_elhub_consumption()
+    else:
+        df = load_elhub_data()
+    # Ensure datetime index
+    if 'date' in df.columns:
+        df['date'] = pd.to_datetime(df['date'])
+        df.set_index('date', inplace=True)
+    elif 'starttime' in df.columns:
+        df['starttime'] = pd.to_datetime(df['starttime'])
+        df.set_index('starttime', inplace=True)
+    return df
 
 @st.cache_resource
 def fit_sarimax(y, exog, order, seasonal_order):
@@ -71,12 +82,13 @@ target_col = "quantitykwh"
 
 # Sidebar: exogenous variable selection
 exog_options = [col for col in df.columns if col not in [target_col, "_id", "date", "starttime"]]
-exog_cols = st.sidebar.multiselect("Select exogenous variables", options=exog_options)
+exog_cols = st.sidebar.multiselect("Select exogenous variables (optional)", options=exog_options)
 
 # Sidebar: timeframe
 st.sidebar.header("Timeframe")
-train_end = st.sidebar.text_input("Training end date", value=str(df.index[int(len(df)*0.7)])[:10])
-dynamic_start = st.sidebar.text_input("Dynamic forecast start date", value=train_end)
+default_date = df.index[int(len(df)*0.7)].date()
+train_end = st.sidebar.date_input("Training end date", value=default_date)
+dynamic_start = st.sidebar.date_input("Dynamic forecast start date", value=default_date)
 
 # Sidebar: simplified SARIMAX parameters
 st.sidebar.header("SARIMAX Parameters")
@@ -88,14 +100,17 @@ Q = st.sidebar.number_input("Seasonal MA (Q)", 0, 5, 1)
 m = st.sidebar.number_input("Seasonal period (m)", 1, 365, 12)
 
 # --- Prepare data ---
-y_train = df[target_col].loc[:train_end]
-exog_train = sanitize_exog(df[exog_cols].loc[:train_end]) if exog_cols else None
+train_end_ts = pd.to_datetime(train_end)
+dynamic_start_ts = pd.to_datetime(dynamic_start)
 
-# --- Fit once ---
+y_train = df[target_col].loc[:train_end_ts]
+exog_train = sanitize_exog(df[exog_cols].loc[:train_end_ts]) if exog_cols else None
+
+# --- Fit model ---
 mod_train, res_train = fit_sarimax(y_train, exog_train, (p,d,q), (P,1,Q,m))
 
-# --- Extend predictions to full dataset ---
-preds = make_predictions(res_train, dynamic_start=pd.to_datetime(dynamic_start), start=train_end)
+# --- Predictions ---
+preds = make_predictions(res_train, dynamic_start=dynamic_start_ts, start=train_end_ts)
 
 # --- Plot ---
 st.header("📈 Forecast Plot")
