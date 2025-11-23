@@ -14,7 +14,6 @@ def sliding_window_corr(series_x, series_y, window, lag):
     return series_x.rolling(window=window, center=True).corr(shifted_y)
 
 def lagged_corr(series_x, series_y, lag):
-    """Safe lagged correlation like in lecture notes, robust to array length mismatches."""
     x = np.asarray(series_x)
     y = np.asarray(series_y)
     n = len(x)
@@ -44,17 +43,14 @@ def load_all_data(year=2023, lat=60.0, lon=10.0):
     prod_df = load_elhub_data()
     cons_df = load_elhub_consumption()
 
-    # timezone
     weather["time"] = pd.to_datetime(weather["time"], utc=True)
     prod_df["starttime"] = pd.to_datetime(prod_df["starttime"], utc=True)
     cons_df["starttime"] = pd.to_datetime(cons_df["starttime"], utc=True)
 
-    # drop _id
     for df in [prod_df, cons_df]:
         if "_id" in df.columns:
             df.drop(columns=["_id"], inplace=True)
 
-    # numeric + resample
     prod_hourly = prod_df.set_index("starttime").apply(pd.to_numeric, errors="coerce").resample("h").mean().interpolate()
     cons_hourly = cons_df.set_index("starttime").apply(pd.to_numeric, errors="coerce").resample("h").mean().interpolate()
 
@@ -108,6 +104,15 @@ lag_corr_value = lagged_corr(df[meta_var].dropna().values,
                              lag)
 
 # -----------------------------
+# Highlight controls
+# -----------------------------
+center_idx = st.slider("Highlight center index", 0, len(df)-1, len(df)//2)
+highlight_width = st.slider("Highlight width", 10, 100, 40)
+highlight_start = max(center_idx - highlight_width // 2, 0)
+highlight_end = min(center_idx + highlight_width // 2, len(df))
+highlight_range = df.index[highlight_start:highlight_end]
+
+# -----------------------------
 # Plot
 # -----------------------------
 fig = go.Figure()
@@ -117,16 +122,31 @@ fig.add_trace(go.Scatter(
     x=df.index,
     y=df[meta_var],
     name=f"Meteo: {meta_var}",
-    line=dict(width=1)
+    line=dict(width=1, color="blue")
+))
+fig.add_trace(go.Scatter(
+    x=highlight_range,
+    y=df.loc[highlight_range, meta_var],
+    name="Meteo highlight",
+    line=dict(width=2, color="red"),
+    showlegend=False
 ))
 
-# Energy series (right axis)
+# Energy series
 fig.add_trace(go.Scatter(
     x=df.index,
     y=df[energy_internal_col],
     name=f"Energy: {selected_energy_display}",
     yaxis="y2",
-    line=dict(width=1)
+    line=dict(width=1, color="blue")
+))
+fig.add_trace(go.Scatter(
+    x=highlight_range,
+    y=df.loc[highlight_range, energy_internal_col],
+    name="Energy highlight",
+    yaxis="y2",
+    line=dict(width=2, color="red"),
+    showlegend=False
 ))
 
 # SWC series
@@ -134,20 +154,21 @@ fig.add_trace(go.Scatter(
     x=df.index,
     y=swc,
     name="SWC",
-    line=dict(width=2)
+    line=dict(width=2, color="blue")
 ))
-
-# -----------------------------
-# Highlight marker
-# -----------------------------
-center_idx = st.slider("Highlight center index", 0, len(df)-1, len(df)//2)
-
+fig.add_trace(go.Scatter(
+    x=highlight_range,
+    y=swc.loc[highlight_range],
+    name="SWC highlight",
+    line=dict(width=2, color="red"),
+    showlegend=False
+))
 fig.add_trace(go.Scatter(
     x=[df.index[center_idx]],
     y=[swc.iloc[center_idx]],
     mode="markers",
     marker=dict(color="red", size=10),
-    name="SWC highlight"
+    name="SWC center"
 ))
 
 fig.update_layout(
