@@ -28,10 +28,7 @@ def sanitize_exog(df: pd.DataFrame) -> pd.DataFrame:
 
 @st.cache_data
 def get_data(dataset_choice):
-    if dataset_choice == "Consumption":
-        return load_elhub_consumption()
-    else:
-        return load_elhub_data()
+    return load_elhub_consumption() if dataset_choice == "Consumption" else load_elhub_data()
 
 @st.cache_resource
 def fit_sarimax(y, exog, order, seasonal_order):
@@ -67,17 +64,14 @@ st.title("🔮 SARIMAX Forecasting of Energy Consumption or Production")
 
 # Dataset selector
 dataset_choice = st.sidebar.radio("Select dataset", ["Consumption", "Production"])
-
-# Spinner for data loading
-with st.spinner("Loading dataset..."):
-    df = get_data(dataset_choice)
+df = get_data(dataset_choice)
 
 # Fixed target
 target_col = "quantitykwh"
 
 # Sidebar: exogenous variable selection
 exog_options = [col for col in df.columns if col not in [target_col, "_id", "date", "starttime"]]
-exog_cols = st.sidebar.multiselect("Select exogenous variables (optional)", options=exog_options)
+exog_cols = st.sidebar.multiselect("Select exogenous variables", options=exog_options)
 
 # Sidebar: timeframe
 st.sidebar.header("Timeframe")
@@ -97,11 +91,10 @@ m = st.sidebar.number_input("Seasonal period (m)", 1, 365, 12)
 y_train = df[target_col].loc[:train_end]
 exog_train = sanitize_exog(df[exog_cols].loc[:train_end]) if exog_cols else None
 
-# --- Fit once with spinner ---
-with st.spinner("Fitting SARIMAX model... please wait"):
-    mod_train, res_train = fit_sarimax(y_train, exog_train, (p,d,q), (P,1,Q,m))
+# --- Fit once ---
+mod_train, res_train = fit_sarimax(y_train, exog_train, (p,d,q), (P,1,Q,m))
 
-# --- Predictions ---
+# --- Extend predictions to full dataset ---
 preds = make_predictions(res_train, dynamic_start=pd.to_datetime(dynamic_start), start=train_end)
 
 # --- Plot ---
