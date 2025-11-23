@@ -32,6 +32,7 @@ def get_data(dataset_choice):
         df = load_elhub_consumption()
     else:
         df = load_elhub_data()
+
     # Ensure datetime index
     if 'date' in df.columns:
         df['date'] = pd.to_datetime(df['date'])
@@ -39,6 +40,10 @@ def get_data(dataset_choice):
     elif 'starttime' in df.columns:
         df['starttime'] = pd.to_datetime(df['starttime'])
         df.set_index('starttime', inplace=True)
+
+    # Drop duplicate timestamps
+    df = df[~df.index.duplicated(keep='first')]
+
     return df
 
 @st.cache_resource
@@ -103,8 +108,8 @@ m = st.sidebar.number_input("Seasonal period (m)", 1, 365, 12)
 train_end_ts = pd.to_datetime(train_end)
 dynamic_start_ts = pd.to_datetime(dynamic_start)
 
-y_train = df[target_col].loc[:train_end_ts]
-exog_train = sanitize_exog(df[exog_cols].loc[:train_end_ts]) if exog_cols else None
+y_train = df.loc[df.index <= train_end_ts, target_col]
+exog_train = sanitize_exog(df.loc[df.index <= train_end_ts, exog_cols]) if exog_cols else None
 
 # --- Fit model ---
 mod_train, res_train = fit_sarimax(y_train, exog_train, (p,d,q), (P,1,Q,m))
