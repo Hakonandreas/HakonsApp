@@ -26,6 +26,10 @@ def sanitize_exog(df: pd.DataFrame) -> pd.DataFrame:
 
     return df_clean
 
+@st.cache_data
+def get_data(dataset_choice):
+    return load_elhub_consumption() if dataset_choice == "Consumption" else load_elhub_data()
+
 @st.cache_resource
 def fit_sarimax(y, exog, order, seasonal_order):
     mod = sm.tsa.statespace.SARIMAX(
@@ -33,25 +37,12 @@ def fit_sarimax(y, exog, order, seasonal_order):
         exog=exog,
         order=order,
         seasonal_order=seasonal_order,
-        trend='c',          # fixed constant trend
+        trend='c',
         enforce_stationarity=True,
         enforce_invertibility=True,
     )
     res = mod.fit(disp=False)
     return mod, res
-
-def refit_and_filter_full(y_full, exog_full, params, order, seasonal_order):
-    mod_full = sm.tsa.statespace.SARIMAX(
-        endog=y_full,
-        exog=exog_full,
-        order=order,
-        seasonal_order=seasonal_order,
-        trend='c',          # fixed constant trend
-        enforce_stationarity=True,
-        enforce_invertibility=True,
-    )
-    res_full = mod_full.filter(params)
-    return mod_full, res_full
 
 def make_predictions(res, dynamic_start, start=None, end=None):
     predict = res.get_prediction(start=start, end=end)
@@ -73,12 +64,12 @@ st.title("🔮 SARIMAX Forecasting of Energy Consumption or Production")
 
 # Dataset selector
 dataset_choice = st.sidebar.radio("Select dataset", ["Consumption", "Production"])
-df = load_elhub_consumption() if dataset_choice == "Consumption" else load_elhub_data()
+df = get_data(dataset_choice)
 
 # Fixed target
 target_col = "quantitykwh"
 
-# Sidebar: exogenous variable selection (excluding _id, date, starttime)
+# Sidebar: exogenous variable selection
 exog_options = [col for col in df.columns if col not in [target_col, "_id", "date", "starttime"]]
 exog_cols = st.sidebar.multiselect("Select exogenous variables", options=exog_options)
 
@@ -98,21 +89,20 @@ m = st.sidebar.number_input("Seasonal period (m)", 1, 365, 12)
 
 # --- Prepare data ---
 y_train = df[target_col].loc[:train_end]
-y_full = df[target_col]
 exog_train = sanitize_exog(df[exog_cols].loc[:train_end]) if exog_cols else None
-exog_full = sanitize_exog(df[exog_cols]) if exog_cols else None
 
-# --- Fit and filter ---
-mod_train, res_train = fit_sarimax(y_train, exog_train, (p,d,q), (P,1,Q,m))  # D fixed at 1
-mod_full, res_full = refit_and_filter_full(y_full, exog_full, res_train.params, (p,d,q), (P,1,Q,m))
+# --- Fit once ---
+mod_train, res_train = fit_sarimax(y_train, exog_train, (p,d,q), (P,1,Q,m))
 
-# --- Predictions ---
-preds = make_predictions(res_full, dynamic_start=pd.to_datetime(dynamic_start), start=train_end)
+# --- Extend predictions to full dataset ---
+preds = make_predictions(res_train, dynamic_start=pd.to_datetime(dynamic_start), start=train_end)
 
 # --- Plot ---
 st.header("📈 Forecast Plot")
 fig, ax = plt.subplots(figsize=(12,5))
-df[target_col].plot(ax=ax, style='o', label='Observed')
+
+# Downsample for speed if dataset is huge
+df[target_col].iloc[::10].plot(ax=ax, style='o', label='Observed', markersize=2)
 
 preds["one_step_mean"].plot(ax=ax, style='r--', label='One-step-ahead')
 ci1 = preds["one_step_ci"]
