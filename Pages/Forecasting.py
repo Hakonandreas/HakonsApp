@@ -26,6 +26,7 @@ def sanitize_exog(df: pd.DataFrame) -> pd.DataFrame:
 
     return df_clean
 
+@st.cache_resource
 def fit_sarimax(y, exog, order, seasonal_order):
     mod = sm.tsa.statespace.SARIMAX(
         endog=y,
