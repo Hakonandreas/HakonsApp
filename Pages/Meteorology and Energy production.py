@@ -1,6 +1,7 @@
 import streamlit as st
 import pandas as pd
 import plotly.graph_objects as go
+
 from functions.elhub_utils import load_elhub_data, load_elhub_consumption
 from functions.weather_utils import download_era5_data
 
@@ -19,42 +20,38 @@ def sliding_window_corr(series_x, series_y, window, lag):
 @st.cache_data
 def load_all_data():
 
-    # Load ERA5
+    # Load meteo (ERA5)
     weather = download_era5_data(
         latitude=60.0,
         longitude=10.0,
         year=2023
     )
 
-    # Load Elhub data
-    prod_df = load_elhub_data()
-    cons_df = load_elhub_consumption()
+    # Load Elhub production + consumption
+    prod_df = load_elhub_data()              # PRODUCTION
+    cons_df = load_elhub_consumption()       # CONSUMPTION
 
-    # --- Time zone fix ---
+    # Fix timestamps
     weather["time"] = pd.to_datetime(weather["time"], utc=True)
     prod_df["starttime"] = pd.to_datetime(prod_df["starttime"], utc=True)
     cons_df["starttime"] = pd.to_datetime(cons_df["starttime"], utc=True)
 
-    # --- Remove _id in production, if present ---
-    if "_id" in prod_df.columns:
-        prod_df = prod_df.drop(columns=["_id"])
-
-    # --- Numeric conversion ---
+    # Convert all values to numeric
     prod_df_numeric = prod_df.set_index("starttime").apply(pd.to_numeric, errors="coerce")
     cons_df_numeric = cons_df.set_index("starttime").apply(pd.to_numeric, errors="coerce")
 
-    # --- Hourly resampling ---
+    # Resample hourly
     prod_hourly = prod_df_numeric.resample("H").mean().interpolate()
     cons_hourly = cons_df_numeric.resample("H").mean().interpolate()
 
-    # --- Merge everything ---
+    # Merge all together
     df = (
         weather.set_index("time")
-        .join(prod_hourly, how="inner", rsuffix="_prod")
-        .join(cons_hourly, how="inner", rsuffix="_cons")
+        .join(prod_hourly, how="inner")
+        .join(cons_hourly, how="inner")
     )
 
-    return df
+    return df, prod_hourly, cons_hourly
 
 
 # -----------------------------
@@ -62,9 +59,9 @@ def load_all_data():
 # -----------------------------
 st.title("Meteorology & Energy: Sliding Window Correlation Explorer")
 
-df = load_all_data()
+df, prod_hourly, cons_hourly = load_all_data()
 
-# Meteorological variables
+# Weather variables (keep manual list)
 weather_vars = [
     "temperature_2m",
     "precipitation",
@@ -73,45 +70,42 @@ weather_vars = [
     "wind_direction_10m"
 ]
 
-# Energy variables split
-prod_vars = [c for c in df.columns if c.endswith("_prod")]
-cons_vars = [c for c in df.columns if c.endswith("_cons")]
+# Extract real production/consumption variables
+prod_vars = [c for c in prod_hourly.columns if not c.endswith("_id")]
+cons_vars = [c for c in cons_hourly.columns if not c.endswith("_id")]
+
 
 # -----------------------------
-# UI: Select Production or Consumption
+# UI Selectors — side by side
 # -----------------------------
-st.write("### Select Data Type")
-data_type = st.radio(
-    "",
-    ["Production", "Consumption"],
-    horizontal=True
-)
+top1, top2 = st.columns(2)
 
-# -----------------------------
-# UI: Side-by-side selectors
-# -----------------------------
+with top1:
+    st.write("### Data Type")
+    data_type = st.radio(
+        "",
+        ["Production", "Consumption"],
+        horizontal=True
+    )
+
+with top2:
+    st.write("### Meteorology Variable")
+    meta_var = st.selectbox("Select meteo variable:", weather_vars)
+
+
+# Energy variable selector
 col1, col2 = st.columns(2)
 
 with col1:
-    st.write("### Meteorology Variable")
-    meta_var = st.selectbox("Select meteorological variable:", weather_vars)
-
-with col2:
     st.write("### Energy Variable")
     if data_type == "Production":
-        if len(prod_vars) == 0:
-            st.error("No production variables available.")
-            st.stop()
         energy_var = st.selectbox("Select production variable:", prod_vars)
     else:
-        if len(cons_vars) == 0:
-            st.error("No consumption variables available.")
-            st.stop()
         energy_var = st.selectbox("Select consumption variable:", cons_vars)
 
 
 # -----------------------------
-# Parameters
+# Controls
 # -----------------------------
 window = st.slider("Window length (hours)", 24, 500, 120)
 lag = st.slider("Lag (hours)", -72, 72, 0)
@@ -172,7 +166,7 @@ st.plotly_chart(fig, use_container_width=True)
 
 
 # -----------------------------
-# Summary Stats
+# Summary
 # -----------------------------
 st.subheader("Correlation Summary")
 st.write(f"**Mean SWC:** {swc.mean():.3f}")
