@@ -70,6 +70,7 @@ def load_all_data(year=2023, lat=60.0, lon=10.0):
 # -----------------------------
 # Streamlit UI
 # -----------------------------
+st.set_page_config(layout="wide")
 st.title("Meteorology & Energy — Sliding Window Correlation")
 
 df, prod_vars, cons_vars, weather_df = load_all_data()
@@ -113,18 +114,18 @@ highlight_end = min(center_idx + highlight_width // 2, len(df))
 highlight_range = df.index[highlight_start:highlight_end]
 
 # -----------------------------
-# Plot
+# Plot 1: Meteorology + Energy
 # -----------------------------
-fig = go.Figure()
+fig_main = go.Figure()
 
-# Meteorology series
-fig.add_trace(go.Scatter(
+# Meteorology series (blue)
+fig_main.add_trace(go.Scatter(
     x=df.index,
     y=df[meta_var],
     name=f"Meteo: {meta_var}",
     line=dict(width=1, color="blue")
 ))
-fig.add_trace(go.Scatter(
+fig_main.add_trace(go.Scatter(
     x=highlight_range,
     y=df.loc[highlight_range, meta_var],
     name="Meteo highlight",
@@ -132,15 +133,15 @@ fig.add_trace(go.Scatter(
     showlegend=False
 ))
 
-# Energy series
-fig.add_trace(go.Scatter(
+# Energy series (green)
+fig_main.add_trace(go.Scatter(
     x=df.index,
     y=df[energy_internal_col],
     name=f"Energy: {selected_energy_display}",
     yaxis="y2",
-    line=dict(width=1, color="blue")
+    line=dict(width=1, color="green")
 ))
-fig.add_trace(go.Scatter(
+fig_main.add_trace(go.Scatter(
     x=highlight_range,
     y=df.loc[highlight_range, energy_internal_col],
     name="Energy highlight",
@@ -149,21 +150,41 @@ fig.add_trace(go.Scatter(
     showlegend=False
 ))
 
-# SWC series
-fig.add_trace(go.Scatter(
+fig_main.update_layout(
+    title=f"{meta_var} vs {selected_energy_display} (window={window}, lag={lag})",
+    height=500,
+    hovermode="x unified",
+    xaxis=dict(title="Time"),
+    yaxis=dict(title=meta_var),
+    yaxis2=dict(title=selected_energy_display, overlaying="y", side="right")
+)
+
+st.plotly_chart(fig_main, use_container_width=True)
+
+# -----------------------------
+# Plot 2: SWC only
+# -----------------------------
+fig_swc = go.Figure()
+
+# SWC line (blue)
+fig_swc.add_trace(go.Scatter(
     x=df.index,
     y=swc,
     name="SWC",
     line=dict(width=2, color="blue")
 ))
-fig.add_trace(go.Scatter(
+
+# Highlight segment (red)
+fig_swc.add_trace(go.Scatter(
     x=highlight_range,
     y=swc.loc[highlight_range],
     name="SWC highlight",
     line=dict(width=2, color="red"),
     showlegend=False
 ))
-fig.add_trace(go.Scatter(
+
+# Center dot (red)
+fig_swc.add_trace(go.Scatter(
     x=[df.index[center_idx]],
     y=[swc.iloc[center_idx]],
     mode="markers",
@@ -171,16 +192,18 @@ fig.add_trace(go.Scatter(
     name="SWC center"
 ))
 
-fig.update_layout(
-    title=f"SWC — {meta_var} vs {selected_energy_display} (window={window}, lag={lag})",
-    height=700,
+# Zero line
+fig_swc.update_layout(
+    title="Sliding Window Correlation (SWC)",
+    height=300,
     hovermode="x unified",
     xaxis=dict(title="Time"),
-    yaxis=dict(title=meta_var),
-    yaxis2=dict(title=selected_energy_display, overlaying="y", side="right")
+    yaxis=dict(title="Correlation", range=[-1, 1]),
+    shapes=[dict(type="line", x0=df.index[0], x1=df.index[-1], y0=0, y1=0,
+                 line=dict(color="gray", dash="dot"))]
 )
 
-st.plotly_chart(fig, use_container_width=True)
+st.plotly_chart(fig_swc, use_container_width=True)
 
 # -----------------------------
 # Summary
