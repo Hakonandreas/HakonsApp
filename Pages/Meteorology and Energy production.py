@@ -14,13 +14,26 @@ def sliding_window_corr(series_x, series_y, window, lag):
     return series_x.rolling(window=window, center=True).corr(shifted_y)
 
 def lagged_corr(series_x, series_y, lag):
-    """Direct lagged correlation like in lecture notes."""
+    """Safe lagged correlation like in lecture notes, robust to array length mismatches."""
+    x = np.asarray(series_x)
+    y = np.asarray(series_y)
+    n = len(x)
+
     if lag > 0:
-        return np.corrcoef(series_x[lag:], series_y[:-lag])[0, 1]
+        x_trim = x[lag:]
+        y_trim = y[:n - lag]
     elif lag < 0:
-        return np.corrcoef(series_x[:lag], series_y[-lag:])[0, 1]
+        lag = -lag
+        x_trim = x[:n - lag]
+        y_trim = y[lag:]
     else:
-        return np.corrcoef(series_x, series_y)[0, 1]
+        x_trim = x
+        y_trim = y
+
+    if len(x_trim) == 0 or len(y_trim) == 0:
+        return np.nan
+
+    return np.corrcoef(x_trim, y_trim)[0, 1]
 
 # -----------------------------
 # Load and merge
@@ -90,31 +103,9 @@ lag = st.slider("Lag (hours)", -72, 72, 0)
 # Compute correlations
 # -----------------------------
 swc = sliding_window_corr(df[meta_var], df[energy_internal_col], window=window, lag=lag)
-def lagged_corr(series_x, series_y, lag):
-    """Safe lagged correlation like in lecture notes, but robust to array length mismatches."""
-    x = np.asarray(series_x)
-    y = np.asarray(series_y)
-    n = len(x)
-
-    if lag > 0:
-        # shift y forward relative to x
-        x_trim = x[lag:]
-        y_trim = y[:n - lag]
-    elif lag < 0:
-        lag = -lag
-        # shift x forward relative to y
-        x_trim = x[:n - lag]
-        y_trim = y[lag:]
-    else:
-        x_trim = x
-        y_trim = y
-
-    # guard against empty slices
-    if len(x_trim) == 0 or len(y_trim) == 0:
-        return np.nan
-
-    return np.corrcoef(x_trim, y_trim)[0, 1]
-
+lag_corr_value = lagged_corr(df[meta_var].dropna().values,
+                             df[energy_internal_col].dropna().values,
+                             lag)
 
 # -----------------------------
 # Plot
