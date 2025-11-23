@@ -112,9 +112,43 @@ lag_corr_value = lagged_corr(df[meta_var].dropna().values,
 # -----------------------------
 fig = go.Figure()
 
-fig.add_trace(go.Scatter(x=df.index, y=df[meta_var], name=f"Meteo: {meta_var}", line=dict(width=1)))
-fig.add_trace(go.Scatter(x=df.index, y=df[energy_internal_col], name=f"Energy: {selected_energy_display}", yaxis="y2", line=dict(width=1)))
-fig.add_trace(go.Scatter(x=df.index, y=swc, name="SWC", line=dict(width=2)))
+# Meteorology series
+fig.add_trace(go.Scatter(
+    x=df.index,
+    y=df[meta_var],
+    name=f"Meteo: {meta_var}",
+    line=dict(width=1)
+))
+
+# Energy series (right axis)
+fig.add_trace(go.Scatter(
+    x=df.index,
+    y=df[energy_internal_col],
+    name=f"Energy: {selected_energy_display}",
+    yaxis="y2",
+    line=dict(width=1)
+))
+
+# SWC series
+fig.add_trace(go.Scatter(
+    x=df.index,
+    y=swc,
+    name="SWC",
+    line=dict(width=2)
+))
+
+# -----------------------------
+# Highlight marker
+# -----------------------------
+center_idx = st.slider("Highlight center index", 0, len(df)-1, len(df)//2)
+
+fig.add_trace(go.Scatter(
+    x=[df.index[center_idx]],
+    y=[swc.iloc[center_idx]],
+    mode="markers",
+    marker=dict(color="red", size=10),
+    name="SWC highlight"
+))
 
 fig.update_layout(
     title=f"SWC — {meta_var} vs {selected_energy_display} (window={window}, lag={lag})",
