@@ -3,7 +3,7 @@ import pandas as pd
 import matplotlib.pyplot as plt
 import statsmodels.api as sm
 
-from functions.elhub_utils import load_elhub_data
+from functions.elhub_utils import load_elhub_data, load_elhub_consumption
 
 # --- Helper functions ---
 def sanitize_exog(df: pd.DataFrame) -> pd.DataFrame:
@@ -64,15 +64,17 @@ def make_predictions(res, dynamic_start, start=None, end=None):
 
 # --- Streamlit UI ---
 st.set_page_config(page_title="Energy Forecasting", layout="wide")
-st.title("🔮 SARIMAX Forecasting of Energy Consumption")
+st.title("🔮 SARIMAX Forecasting of Energy Consumption or Production")
 
-# Load Elhub data
-df = load_elhub_data()
+# Dataset selector
+dataset_choice = st.sidebar.radio("Select dataset", ["Consumption", "Production"])
+df = load_elhub_consumption() if dataset_choice == "Consumption" else load_elhub_data()
+
+# Fixed target
 target_col = "quantitykwh"
 
-# Sidebar: exogenous variable selection
-st.sidebar.header("Exogenous Variables")
-exog_options = [col for col in df.columns if col != target_col]
+# Sidebar: exogenous variable selection (excluding _id and target)
+exog_options = [col for col in df.columns if col not in [target_col, "_id"]]
 exog_cols = st.sidebar.multiselect("Select exogenous variables", options=exog_options)
 
 # Sidebar: timeframe
@@ -117,7 +119,7 @@ preds["dynamic_mean"].plot(ax=ax, style='g', label=f'Dynamic (from {dynamic_star
 ci2 = preds["dynamic_ci"]
 ax.fill_between(ci2.index, ci2.iloc[:,0], ci2.iloc[:,1], color='g', alpha=0.15)
 
-ax.set_title("Forecast of quantitykwh")
+ax.set_title(f"{target_col} forecast — {dataset_choice}")
 ax.set_xlabel("Date")
 ax.set_ylabel("kWh")
 ax.legend()
