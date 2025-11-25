@@ -32,7 +32,7 @@ def sanitize_exog(df: pd.DataFrame) -> pd.DataFrame:
     return df
 
 # =========================================================
-# Helper: Prepare series (daily resampling + grouping)
+# Helper: Prepare series
 # =========================================================
 def prepare_series(df: pd.DataFrame, target="quantitykwh"):
     """Returns a dict with grouped daily series options."""
@@ -49,11 +49,7 @@ def prepare_series(df: pd.DataFrame, target="quantitykwh"):
         for g in groups:
 
             subset = df[df[group_col] == g].copy()
-
-            if pa_col:
-                priceareas = subset[pa_col].dropna().unique()
-            else:
-                priceareas = ["ALL"]
+            priceareas = subset[pa_col].dropna().unique() if pa_col else ["ALL"]
 
             for pa in priceareas:
                 if pa_col and pa != "ALL":
@@ -116,7 +112,6 @@ st.title("🔮 SARIMAX Forecasting of Energy Production / Consumption")
 dataset_choice = st.sidebar.radio("Select dataset", ["Consumption", "Production"])
 df_raw = load_elhub_consumption() if dataset_choice == "Consumption" else load_elhub_data()
 
-# Standardize timestamp column
 df_raw["starttime"] = pd.to_datetime(df_raw["starttime"])
 df_raw.set_index("starttime", inplace=True)
 
@@ -128,22 +123,30 @@ if not series_dict:
     st.stop()
 
 # -----------------------------
-# Series selection
+# NEW: Separate dropdowns
 # -----------------------------
-selection_keys = {
-    f"{key[0]} = {key[1]} | pricearea = {key[2]}": key for key in series_dict.keys()
-}
-chosen_label = st.selectbox("Choose time series:", list(selection_keys.keys()))
-chosen_key = selection_keys[chosen_label]
+st.header("Select Time Series")
+
+# Extract available options
+group_columns = sorted({k[0] for k in series_dict})
+selected_group_col = st.selectbox("Group type:", group_columns)
+
+group_values = sorted({k[1] for k in series_dict if k[0] == selected_group_col})
+selected_group_value = st.selectbox("Group:", group_values)
+
+priceareas = sorted({k[2] for k in series_dict if k[0] == selected_group_col and k[1] == selected_group_value})
+selected_pricearea = st.selectbox("Price area:", priceareas)
+
+chosen_key = (selected_group_col, selected_group_value, selected_pricearea)
 series = series_dict[chosen_key]
 
+# Plot selected raw series
 st.line_chart(series, height=250)
 
 # -----------------------------
 # Training period
 # -----------------------------
 st.header("Training Period")
-
 min_date = series.index.min().date()
 max_date = series.index.max().date()
 
@@ -173,7 +176,7 @@ else:
     exog_train = None
 
 # --------------------------------------
-# SARIMAX param input
+# SARIMAX params
 # --------------------------------------
 st.sidebar.header("SARIMAX Parameters")
 p = st.sidebar.number_input("p (AR)", 0, 5, 1)
@@ -186,7 +189,6 @@ Q = st.sidebar.number_input("Q (seasonal MA)", 0, 2, 0)
 m = st.sidebar.number_input("m (season period)", 1, 365, 7)
 
 forecast_steps = st.sidebar.number_input("Forecast horizon (days)", 1, 365, 30)
-
 run = st.sidebar.button("Run Forecast")
 
 # =========================================================
@@ -205,18 +207,15 @@ if run:
     mean = forecast.predicted_mean
     ci = forecast.conf_int()
 
-    # Plot ----------------------------------
+    # Plot
     st.header("📈 Forecast")
     fig, ax = plt.subplots(figsize=(12, 5))
-
     ax.plot(y_train.index, y_train.values, label="Observed")
-    ax.plot(mean.index, mean.values, label="Forecast", color="red")
-
-    ax.fill_between(ci.index, ci.iloc[:, 0], ci.iloc[:, 1], alpha=0.2, color="red")
+    ax.plot(mean.index, mean.values, label="Forecast")
+    ax.fill_between(ci.index, ci.iloc[:, 0], ci.iloc[:, 1], alpha=0.2)
 
     ax.set_title(f"Forecast ({dataset_choice})")
     ax.legend()
-
     st.pyplot(fig)
 
     st.subheader("Model Summary")
