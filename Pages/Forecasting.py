@@ -157,24 +157,6 @@ train_end = pd.Timestamp(train_end)
 y_train = series.loc[train_start:train_end]
 
 
-# =========================================================
-# Exogenous variables
-# =========================================================
-st.sidebar.header("Exogenous Variables")
-
-exog_candidates = [
-    c for c in df_raw.columns
-    if c not in ["quantitykwh", "pricearea", group_col]
-]
-
-selected_exog = st.sidebar.multiselect("Select exogenous variables:", exog_candidates)
-
-if selected_exog:
-    exog_raw = df_raw[selected_exog].resample("D").mean().fillna(method="ffill")
-    exog_train = sanitize_exog(exog_raw.loc[y_train.index])
-else:
-    exog_train = None
-
 
 # =========================================================
 # SARIMAX parameters
@@ -202,7 +184,7 @@ if run:
     with st.spinner("Fitting SARIMAX model…"):
         model, res = fit_sarimax(
             y=y_train,
-            exog=exog_train,
+            exog=None,
             order=(p, d, q),
             seasonal_order=(P, D, Q, m),
         )
