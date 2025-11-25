@@ -1,144 +1,223 @@
 import streamlit as st
 import pandas as pd
+import numpy as np
 import matplotlib.pyplot as plt
 import statsmodels.api as sm
-
 from functions.elhub_utils import load_elhub_data, load_elhub_consumption
 
-# --- Helper functions ---
+# =========================================================
+# Helper: Clean exogenous variables
+# =========================================================
 def sanitize_exog(df: pd.DataFrame) -> pd.DataFrame:
-    df_clean = df.copy()
+    if df is None or df.empty:
+        return None
+    df = df.copy()
 
-    # Drop datetime columns
-    for col in df_clean.select_dtypes(include=['datetime', 'datetimetz']).columns:
-        df_clean.drop(columns=col, inplace=True)
+    # Remove datetime columns
+    for col in df.select_dtypes(include=["datetime", "datetimetz"]).columns:
+        df.drop(columns=col, inplace=True)
 
-    # Encode categorical columns
-    for col in df_clean.select_dtypes(include=['object', 'category']).columns:
-        df_clean = pd.get_dummies(df_clean, columns=[col], drop_first=True)
+    # One-hot encode categorical
+    cat_cols = df.select_dtypes(include=["object", "category"]).columns
+    if len(cat_cols) > 0:
+        df = pd.get_dummies(df, columns=cat_cols, drop_first=True)
 
-    # Convert booleans to integers
-    for col in df_clean.select_dtypes(include=['bool']).columns:
-        df_clean[col] = df_clean[col].astype(int)
+    # Convert booleans
+    bool_cols = df.select_dtypes(include=["bool"]).columns
+    df[bool_cols] = df[bool_cols].astype(int)
 
-    # Ensure all numeric
-    df_clean = df_clean.apply(pd.to_numeric, errors='coerce').dropna(axis=1)
-
-    return df_clean
-
-@st.cache_data
-def get_data(dataset_choice):
-    if dataset_choice == "Consumption":
-        df = load_elhub_consumption()
-    else:
-        df = load_elhub_data()
-
-    # Ensure datetime index
-    if 'date' in df.columns:
-        df['date'] = pd.to_datetime(df['date'])
-        df.set_index('date', inplace=True)
-    elif 'starttime' in df.columns:
-        df['starttime'] = pd.to_datetime(df['starttime'])
-        df.set_index('starttime', inplace=True)
-
-    # Drop duplicate timestamps
-    df = df[~df.index.duplicated(keep='first')]
+    # Convert everything to numeric, drop non-convertible columns
+    df = df.apply(pd.to_numeric, errors="coerce").dropna(axis=1)
 
     return df
 
+# =========================================================
+# Helper: Prepare series (daily resampling + grouping)
+# =========================================================
+def prepare_series(df: pd.DataFrame, target="quantitykwh"):
+    """Returns a dict with grouped daily series options."""
+    if df.empty:
+        return {}
+
+    group_cols = [c for c in ["productiongroup", "consumptiongroup"] if c in df.columns]
+    pa_col = "pricearea" if "pricearea" in df.columns else None
+
+    results = {}
+
+    for group_col in group_cols:
+        groups = df[group_col].dropna().unique()
+        for g in groups:
+
+            subset = df[df[group_col] == g].copy()
+
+            if pa_col:
+                priceareas = subset[pa_col].dropna().unique()
+            else:
+                priceareas = ["ALL"]
+
+            for pa in priceareas:
+                if pa_col and pa != "ALL":
+                    sub = subset[subset[pa_col] == pa]
+                else:
+                    sub = subset
+
+                if sub.empty:
+                    continue
+
+                # --- Aggregate to daily ---
+                s = (
+                    sub.groupby("starttime")[target]
+                    .sum()
+                    .resample("D")
+                    .sum()
+                    .fillna(0)
+                )
+
+                # Try setting a frequency
+                try:
+                    freq = s.index.inferred_freq
+                    if freq:
+                        s = s.asfreq(freq)
+                except:
+                    pass
+
+                results[(group_col, g, pa)] = s
+
+    return results
+
+
+# =========================================================
+# SARIMAX fitting
+# =========================================================
 @st.cache_resource
 def fit_sarimax(y, exog, order, seasonal_order):
-    mod = sm.tsa.statespace.SARIMAX(
-        endog=y,
+    model = sm.tsa.SARIMAX(
+        y,
         exog=exog,
         order=order,
         seasonal_order=seasonal_order,
-        trend='c',
-        enforce_stationarity=True,
-        enforce_invertibility=True,
+        trend="c",
+        enforce_stationarity=False,
+        enforce_invertibility=False
     )
-    res = mod.fit(disp=False)
-    return mod, res
+    res = model.fit(disp=False)
+    return model, res
 
-def make_predictions(res, dynamic_start, start=None, end=None):
-    predict = res.get_prediction(start=start, end=end)
-    predict_ci = predict.conf_int()
 
-    predict_dy = res.get_prediction(dynamic=dynamic_start, start=start, end=end)
-    predict_dy_ci = predict_dy.conf_int()
-
-    return {
-        "one_step_mean": predict.predicted_mean,
-        "one_step_ci": predict_ci,
-        "dynamic_mean": predict_dy.predicted_mean,
-        "dynamic_ci": predict_dy_ci,
-    }
-
-# --- Streamlit UI ---
+# =========================================================
+# Streamlit UI
+# =========================================================
 st.set_page_config(page_title="Energy Forecasting", layout="wide")
-st.title("🔮 SARIMAX Forecasting of Energy Consumption or Production")
+st.title("🔮 SARIMAX Forecasting of Energy Production / Consumption")
 
-# Dataset selector
+# -----------------------------
+# Dataset selection
+# -----------------------------
 dataset_choice = st.sidebar.radio("Select dataset", ["Consumption", "Production"])
-df = get_data(dataset_choice)
+df_raw = load_elhub_consumption() if dataset_choice == "Consumption" else load_elhub_data()
 
-# Fixed target
-target_col = "quantitykwh"
+# Standardize timestamp column
+df_raw["starttime"] = pd.to_datetime(df_raw["starttime"])
+df_raw.set_index("starttime", inplace=True)
 
-# Sidebar: exogenous variable selection
-exog_options = [col for col in df.columns if col not in [target_col, "_id", "date", "starttime"]]
-exog_cols = st.sidebar.multiselect("Select exogenous variables (optional)", options=exog_options)
+# Prepare grouped daily series
+series_dict = prepare_series(df_raw)
 
-# Sidebar: timeframe
-st.sidebar.header("Timeframe")
-default_date = df.index[int(len(df)*0.7)].date()
-train_end = st.sidebar.date_input("Training end date", value=default_date)
-dynamic_start = st.sidebar.date_input("Dynamic forecast start date", value=default_date)
+if not series_dict:
+    st.error("No valid time series found in database.")
+    st.stop()
 
-# Sidebar: simplified SARIMAX parameters
+# -----------------------------
+# Series selection
+# -----------------------------
+selection_keys = {
+    f"{key[0]} = {key[1]} | pricearea = {key[2]}": key for key in series_dict.keys()
+}
+chosen_label = st.selectbox("Choose time series:", list(selection_keys.keys()))
+chosen_key = selection_keys[chosen_label]
+series = series_dict[chosen_key]
+
+st.line_chart(series, height=250)
+
+# -----------------------------
+# Training period
+# -----------------------------
+st.header("Training Period")
+
+min_date = series.index.min().date()
+max_date = series.index.max().date()
+
+train_start, train_end = st.date_input(
+    "Select training period:",
+    value=(min_date, max_date),
+    min_value=min_date,
+    max_value=max_date,
+)
+
+train_start_dt = pd.Timestamp(train_start)
+train_end_dt = pd.Timestamp(train_end)
+
+y_train = series.loc[train_start_dt:train_end_dt]
+
+# ----------------------------------
+# Exogenous variable selection
+# ----------------------------------
+st.sidebar.header("Exogenous Variables")
+exog_cols = [c for c in df_raw.columns if c not in ["quantitykwh", "productiongroup", "consumptiongroup"]]
+exog_selected = st.sidebar.multiselect("Select exogenous variables (optional)", exog_cols)
+
+if exog_selected:
+    exog_raw = df_raw[exog_selected].resample("D").mean().fillna(method="ffill")
+    exog_train = sanitize_exog(exog_raw.loc[y_train.index])
+else:
+    exog_train = None
+
+# --------------------------------------
+# SARIMAX param input
+# --------------------------------------
 st.sidebar.header("SARIMAX Parameters")
-p = st.sidebar.number_input("AR order (p)", 0, 5, 1)
-d = st.sidebar.number_input("Differencing (d)", 0, 2, 1)
-q = st.sidebar.number_input("MA order (q)", 0, 5, 1)
-P = st.sidebar.number_input("Seasonal AR (P)", 0, 5, 1)
-Q = st.sidebar.number_input("Seasonal MA (Q)", 0, 5, 1)
-m = st.sidebar.number_input("Seasonal period (m)", 1, 365, 12)
+p = st.sidebar.number_input("p (AR)", 0, 5, 1)
+d = st.sidebar.number_input("d (diff)", 0, 2, 1)
+q = st.sidebar.number_input("q (MA)", 0, 5, 1)
 
-# --- Prepare data ---
-train_end_ts = pd.to_datetime(train_end)
-dynamic_start_ts = pd.to_datetime(dynamic_start)
+P = st.sidebar.number_input("P (seasonal AR)", 0, 2, 0)
+D = st.sidebar.number_input("D (seasonal diff)", 0, 1, 0)
+Q = st.sidebar.number_input("Q (seasonal MA)", 0, 2, 0)
+m = st.sidebar.number_input("m (season period)", 1, 365, 7)
 
-y_train = df.loc[df.index <= train_end_ts, target_col]
-exog_train = sanitize_exog(df.loc[df.index <= train_end_ts, exog_cols]) if exog_cols else None
+forecast_steps = st.sidebar.number_input("Forecast horizon (days)", 1, 365, 30)
 
-# --- Fit model ---
-mod_train, res_train = fit_sarimax(y_train, exog_train, (p,d,q), (P,1,Q,m))
+run = st.sidebar.button("Run Forecast")
 
-# --- Predictions ---
-preds = make_predictions(res_train, dynamic_start=dynamic_start_ts, start=train_end_ts)
+# =========================================================
+# Forecast
+# =========================================================
+if run:
+    with st.spinner("Fitting SARIMAX model..."):
+        model, res = fit_sarimax(
+            y=y_train,
+            exog=exog_train,
+            order=(p, d, q),
+            seasonal_order=(P, D, Q, m),
+        )
 
-# --- Plot ---
-st.header("📈 Forecast Plot")
-fig, ax = plt.subplots(figsize=(12,5))
+    forecast = res.get_forecast(steps=forecast_steps)
+    mean = forecast.predicted_mean
+    ci = forecast.conf_int()
 
-# Downsample for speed if dataset is huge
-df[target_col].iloc[::10].plot(ax=ax, style='o', label='Observed', markersize=2)
+    # Plot ----------------------------------
+    st.header("📈 Forecast")
+    fig, ax = plt.subplots(figsize=(12, 5))
 
-preds["one_step_mean"].plot(ax=ax, style='r--', label='One-step-ahead')
-ci1 = preds["one_step_ci"]
-ax.fill_between(ci1.index, ci1.iloc[:,0], ci1.iloc[:,1], color='r', alpha=0.15)
+    ax.plot(y_train.index, y_train.values, label="Observed")
+    ax.plot(mean.index, mean.values, label="Forecast", color="red")
 
-preds["dynamic_mean"].plot(ax=ax, style='g', label=f'Dynamic (from {dynamic_start})')
-ci2 = preds["dynamic_ci"]
-ax.fill_between(ci2.index, ci2.iloc[:,0], ci2.iloc[:,1], color='g', alpha=0.15)
+    ax.fill_between(ci.index, ci.iloc[:, 0], ci.iloc[:, 1], alpha=0.2, color="red")
 
-ax.set_title(f"{target_col} forecast — {dataset_choice}")
-ax.set_xlabel("Date")
-ax.set_ylabel("kWh")
-ax.legend()
-st.pyplot(fig)
+    ax.set_title(f"Forecast ({dataset_choice})")
+    ax.legend()
 
-# --- Diagnostics ---
-st.header("🧪 Model Diagnostics")
-st.subheader("SARIMAX Summary")
-st.text(res_train.summary().as_text())
+    st.pyplot(fig)
+
+    st.subheader("Model Summary")
+    st.text(res.summary().as_text())
