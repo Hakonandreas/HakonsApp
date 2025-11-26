@@ -212,7 +212,7 @@ if run:
 # =========================================================
 # Explanation of Parameters
 # =========================================================
-with st.expandeer("ℹ️ Parameter Explanations"):
+with st.expander("ℹ️ Parameter Explanations"):
 
     st.markdown("""
     **Non-seasonal parameters (ARIMA):**
