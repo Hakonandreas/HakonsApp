@@ -72,7 +72,7 @@ def calculate_snow_drift(lat: float, lon: float, start_date: pd.Timestamp, end_d
     return float(Qt)
 
 
-def plot_wind_rose(lat: float, lon: float, start_year: int, end_year: int):
+def plot_wind_rose(lat: float, lon: float, start_year: int, end_year: int, figsize=(8,8)):
     """
     Download ERA5 data for the given coordinates and year range, plot wind rose.
     Returns a matplotlib Figure.
@@ -80,7 +80,7 @@ def plot_wind_rose(lat: float, lon: float, start_year: int, end_year: int):
     dfs = [download_era5_data(lat, lon, y) for y in range(start_year, end_year + 1)]
     df = pd.concat(dfs).sort_values("time")
     if df.empty:
-        fig = plt.figure()
+        fig = plt.figure(figsize=figsize)
         plt.text(0.5, 0.5, "No data in selected range", ha="center", va="center")
         plt.axis("off")
         return fig
@@ -100,8 +100,8 @@ def plot_wind_rose(lat: float, lon: float, start_year: int, end_year: int):
     Swe_total = df["Swe_hourly"].sum()
     Qt = compute_snow_transport(3000, 30000, 0.5, Swe_total, ws)
 
-    # Plot rose
-    fig, ax = plt.subplots(subplot_kw={'projection': 'polar'}, figsize=(8, 8))
+    # Plot rose with configurable size
+    fig, ax = plt.subplots(subplot_kw={'projection': 'polar'}, figsize=figsize)
     angles = np.deg2rad(np.arange(0, 360, 360 / 16))
     ax.bar(angles, np.array(sectors) / 1000.0, width=np.deg2rad(22.5), edgecolor="black")
     ax.set_theta_zero_location("N")
