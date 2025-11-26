@@ -163,13 +163,13 @@ y_train = series.loc[train_start:train_end]
 # =========================================================
 st.sidebar.header("SARIMAX Parameters")
 
-p = st.sidebar.number_input("p (AR)", 0, 5, 1)
-d = st.sidebar.number_input("d (diff)", 0, 2, 1)
-q = st.sidebar.number_input("q (MA)", 0, 5, 1)
+p = st.sidebar.number_input("p (AR)", 1, 5, 1)
+d = st.sidebar.number_input("d (diff)", 1, 2, 1)
+q = st.sidebar.number_input("q (MA)", 1, 5, 1)
 
-P = st.sidebar.number_input("P (seasonal AR)", 0, 2, 0)
-D = st.sidebar.number_input("D (seasonal diff)", 0, 1, 0)
-Q = st.sidebar.number_input("Q (seasonal MA)", 0, 2, 0)
+P = st.sidebar.number_input("P (seasonal AR)", 1, 2, 0)
+D = st.sidebar.number_input("D (seasonal diff)", 1, 1, 0)
+Q = st.sidebar.number_input("Q (seasonal MA)", 1, 2, 0)
 m = st.sidebar.number_input("m (seasonality)", 1, 365, 7)
 
 forecast_steps = st.sidebar.number_input("Forecast horizon (days)", 1, 365, 30)
@@ -205,3 +205,24 @@ if run:
 
     st.subheader("Model Summary")
     st.text(res.summary().as_text())
+
+# =========================================================
+# Explanation of Parameters
+# =========================================================
+with st.expandeer("ℹ️ Parameter Explanations"):
+
+    st.markdown("""
+    **Non-seasonal parameters (ARIMA):**
+    - **p (AR)**: Autoregressive order. Number of past values used to predict the current value.
+    - **d (diff)**: Differencing order. Number of times the series is differenced to remove trends and make it stationary.
+    - **q (MA)**: Moving average order. Number of past forecast errors included in the model.
+
+    **Seasonal parameters (SARIMA):**
+    - **P (seasonal AR)**: Seasonal autoregressive order. Like `p`, but applied to seasonal lags.
+    - **D (seasonal diff)**: Seasonal differencing order. Number of seasonal differences applied (e.g., yearly or weekly).
+    - **Q (seasonal MA)**: Seasonal moving average order. Like `q`, but applied to seasonal lags.
+    - **m (seasonality)**: Length of the seasonal cycle (e.g., 7 for weekly seasonality in daily data, 365 for yearly).
+
+    **Forecast settings:**
+    - **Forecast horizon (days)**: How many future steps (days) to forecast.
+    """)
