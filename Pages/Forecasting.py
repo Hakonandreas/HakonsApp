@@ -1,38 +1,8 @@
 import streamlit as st
 import pandas as pd
-import numpy as np
 import matplotlib.pyplot as plt
 import statsmodels.api as sm
 from functions.elhub_utils import load_elhub_data, load_elhub_consumption
-
-
-# =========================================================
-# Helper: Clean exogenous variables
-# =========================================================
-def sanitize_exog(df: pd.DataFrame) -> pd.DataFrame:
-    if df is None or df.empty:
-        return None
-
-    df = df.copy()
-
-    # Remove datetime columns
-    dt_cols = df.select_dtypes(include=["datetime", "datetimetz"]).columns
-    df = df.drop(columns=dt_cols)
-
-    # One-hot encode categorical variables
-    cat_cols = df.select_dtypes(include=["object", "category"]).columns
-    if len(cat_cols) > 0:
-        df = pd.get_dummies(df, columns=cat_cols, drop_first=True)
-
-    # Convert boolean to int
-    bool_cols = df.select_dtypes(include=["bool"]).columns
-    if len(bool_cols) > 0:
-        df[bool_cols] = df[bool_cols].astype(int)
-
-    # Convert all to numeric, drop non-convertible
-    df = df.apply(pd.to_numeric, errors="coerce").dropna(axis=1, how="any")
-
-    return df
 
 
 # =========================================================
@@ -80,10 +50,9 @@ def prepare_series(df: pd.DataFrame, target="quantitykwh"):
 # SARIMAX fitting
 # =========================================================
 @st.cache_resource
-def fit_sarimax(y, exog, order, seasonal_order):
+def fit_sarimax(y, order, seasonal_order):
     model = sm.tsa.SARIMAX(
         y,
-        exog=exog,
         order=order,
         seasonal_order=seasonal_order,
         trend="c",
@@ -118,7 +87,7 @@ if not series_dict:
 
 
 # =========================================================
-# Time series selection (similar to the alternative)
+# Time series selection
 # =========================================================
 st.header("Select Time Series")
 
@@ -163,21 +132,20 @@ y_train = series.loc[train_start:train_end]
 st.sidebar.header("SARIMAX Parameters")
 
 # Non-seasonal parameters
-p = st.sidebar.number_input("p (AR)", 1, 5, 1)   # min 1, default 1
-d = st.sidebar.number_input("d (diff)", 0, 2, 1) # allow 0, default 1
-q = st.sidebar.number_input("q (MA)", 1, 5, 1)   # min 1, default 1
+p = st.sidebar.number_input("p (AR)", 1, 5, 1)
+d = st.sidebar.number_input("d (diff)", 0, 2, 1)
+q = st.sidebar.number_input("q (MA)", 1, 5, 1)
 
 # Seasonal parameters
-P = st.sidebar.number_input("P (seasonal AR)", 0, 2, 1)  # allow 0, default 1
-D = st.sidebar.number_input("D (seasonal diff)", 0, 1, 0) # allow 0, default 0
-Q = st.sidebar.number_input("Q (seasonal MA)", 0, 2, 1)  # allow 0, default 1
-m = st.sidebar.number_input("m (seasonality)", 1, 365, 7) # min 1, default 7
+P = st.sidebar.number_input("P (seasonal AR)", 0, 2, 1)
+D = st.sidebar.number_input("D (seasonal diff)", 0, 1, 0)
+Q = st.sidebar.number_input("Q (seasonal MA)", 0, 2, 1)
+m = st.sidebar.number_input("m (seasonality)", 1, 365, 7)
 
 # Forecast horizon
 forecast_steps = st.sidebar.number_input("Forecast horizon (days)", 1, 365, 30)
 
 run = st.sidebar.button("Run Forecast")
-
 
 
 # =========================================================
@@ -187,7 +155,6 @@ if run:
     with st.spinner("Fitting SARIMAX model…"):
         model, res = fit_sarimax(
             y=y_train,
-            exog=None,
             order=(p, d, q),
             seasonal_order=(P, D, Q, m),
         )
@@ -209,11 +176,11 @@ if run:
     st.subheader("Model Summary")
     st.text(res.summary().as_text())
 
+
 # =========================================================
 # Explanation of Parameters
 # =========================================================
 with st.expander("ℹ️ Parameter Explanations"):
-
     st.markdown("""
     **Non-seasonal parameters (ARIMA):**
     - **p (AR)**: Autoregressive order. Number of past values used to predict the current value.
