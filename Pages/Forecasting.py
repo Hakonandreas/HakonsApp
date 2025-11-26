@@ -1,6 +1,6 @@
 import streamlit as st
 import pandas as pd
-import matplotlib.pyplot as plt
+import plotly.graph_objects as go
 import statsmodels.api as sm
 from functions.elhub_utils import load_elhub_data, load_elhub_consumption
 
@@ -12,7 +12,6 @@ def prepare_series(df: pd.DataFrame, target="quantitykwh"):
     """Returns a dict of: (group, pricearea) -> daily series."""
     results = {}
 
-    # Depending on dataset selection, only one of these exists
     group_col = "consumptiongroup" if "consumptiongroup" in df.columns else "productiongroup"
 
     for group in sorted(df[group_col].dropna().unique()):
@@ -33,7 +32,6 @@ def prepare_series(df: pd.DataFrame, target="quantitykwh"):
                 .fillna(0)
             )
 
-            # Try set frequency for SARIMAX
             try:
                 freq = daily.index.inferred_freq
                 if freq:
@@ -93,11 +91,9 @@ st.header("Select Time Series")
 
 group_col = "consumptiongroup" if dataset_choice == "Consumption" else "productiongroup"
 
-# Group dropdown
 groups = sorted(df_raw[group_col].dropna().unique())
 selected_group = st.selectbox("Group:", groups)
 
-# Price area dropdown
 priceareas = sorted(df_raw[df_raw[group_col] == selected_group]["pricearea"].dropna().unique())
 selected_pa = st.selectbox("Price Area:", priceareas)
 
@@ -131,25 +127,22 @@ y_train = series.loc[train_start:train_end]
 # =========================================================
 st.sidebar.header("SARIMAX Parameters")
 
-# Non-seasonal parameters
 p = st.sidebar.number_input("p (AR)", 1, 5, 1)
 d = st.sidebar.number_input("d (diff)", 0, 2, 1)
 q = st.sidebar.number_input("q (MA)", 1, 5, 1)
 
-# Seasonal parameters
 P = st.sidebar.number_input("P (seasonal AR)", 0, 2, 1)
 D = st.sidebar.number_input("D (seasonal diff)", 0, 1, 0)
 Q = st.sidebar.number_input("Q (seasonal MA)", 0, 2, 1)
 m = st.sidebar.number_input("m (seasonality)", 1, 365, 7)
 
-# Forecast horizon
 forecast_steps = st.sidebar.number_input("Forecast horizon (days)", 1, 365, 30)
 
 run = st.sidebar.button("Run Forecast")
 
 
 # =========================================================
-# Forecasting
+# Forecasting with Plotly
 # =========================================================
 if run:
     with st.spinner("Fitting SARIMAX model…"):
@@ -165,13 +158,41 @@ if run:
 
     st.header("📈 Forecast")
 
-    fig, ax = plt.subplots(figsize=(12, 5))
-    ax.plot(y_train.index, y_train.values, label="Observed")
-    ax.plot(mean.index, mean.values, label="Forecast")
-    ax.fill_between(ci.index, ci.iloc[:, 0], ci.iloc[:, 1], alpha=0.2)
+    fig = go.Figure()
 
-    ax.legend()
-    st.pyplot(fig)
+    # Observed series
+    fig.add_trace(go.Scatter(
+        x=y_train.index, y=y_train.values,
+        mode="lines", name="Observed"
+    ))
+
+    # Forecast series
+    fig.add_trace(go.Scatter(
+        x=mean.index, y=mean.values,
+        mode="lines", name="Forecast"
+    ))
+
+    # Confidence interval (shaded area)
+    fig.add_trace(go.Scatter(
+        x=ci.index.tolist() + ci.index[::-1].tolist(),
+        y=ci.iloc[:, 0].tolist() + ci.iloc[:, 1][::-1].tolist(),
+        fill="toself",
+        fillcolor="rgba(0,100,80,0.2)",
+        line=dict(color="rgba(255,255,255,0)"),
+        hoverinfo="skip",
+        showlegend=True,
+        name="Confidence Interval"
+    ))
+
+    fig.update_layout(
+        width=900, height=500,
+        margin=dict(l=40, r=40, t=40, b=40),
+        legend=dict(x=0, y=1),
+        xaxis_title="Date",
+        yaxis_title="Energy (kWh)"
+    )
+
+    st.plotly_chart(fig, use_container_width=True)
 
     st.subheader("Model Summary")
     st.text(res.summary().as_text())
