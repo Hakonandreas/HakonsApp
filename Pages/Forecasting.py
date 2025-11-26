@@ -157,24 +157,27 @@ train_end = pd.Timestamp(train_end)
 y_train = series.loc[train_start:train_end]
 
 
-
 # =========================================================
 # SARIMAX parameters
 # =========================================================
 st.sidebar.header("SARIMAX Parameters")
 
-p = st.sidebar.number_input("p (AR)", 1, 5, 1)
-d = st.sidebar.number_input("d (diff)", 1, 2, 1)
-q = st.sidebar.number_input("q (MA)", 1, 5, 1)
+# Non-seasonal parameters
+p = st.sidebar.number_input("p (AR)", 1, 5, 1)   # min 1, default 1
+d = st.sidebar.number_input("d (diff)", 0, 2, 1) # allow 0, default 1
+q = st.sidebar.number_input("q (MA)", 1, 5, 1)   # min 1, default 1
 
-P = st.sidebar.number_input("P (seasonal AR)", 1, 2, 0)
-D = st.sidebar.number_input("D (seasonal diff)", 1, 1, 0)
-Q = st.sidebar.number_input("Q (seasonal MA)", 1, 2, 0)
-m = st.sidebar.number_input("m (seasonality)", 1, 365, 7)
+# Seasonal parameters
+P = st.sidebar.number_input("P (seasonal AR)", 0, 2, 1)  # allow 0, default 1
+D = st.sidebar.number_input("D (seasonal diff)", 0, 1, 0) # allow 0, default 0
+Q = st.sidebar.number_input("Q (seasonal MA)", 0, 2, 1)  # allow 0, default 1
+m = st.sidebar.number_input("m (seasonality)", 1, 365, 7) # min 1, default 7
 
+# Forecast horizon
 forecast_steps = st.sidebar.number_input("Forecast horizon (days)", 1, 365, 30)
 
 run = st.sidebar.button("Run Forecast")
+
 
 
 # =========================================================
