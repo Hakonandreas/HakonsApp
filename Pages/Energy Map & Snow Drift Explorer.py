@@ -205,7 +205,7 @@ if st.session_state.clicked_point:
     st.write("### Wind rose")
     try:
         fig = plot_wind_rose(lat, lon, start_year, end_year, figsize=(2,2))
-        st.pyplot(fig, clear_figure=True)
+        st.pyplot(fig, clear_figure=True, bbox_inches="tight", dpi=100)
     except FileNotFoundError as e:
         st.error(str(e))
 else:
