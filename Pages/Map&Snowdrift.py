@@ -8,22 +8,23 @@ import pandas as pd
 import numpy as np
 from datetime import timedelta
 from functions.elhub_utils import load_elhub_data, load_elhub_consumption
+from functions.Snow_drift import calculate_snow_drift, plot_wind_rose
 
 st.set_page_config(layout="wide")
-st.title("Energy Map – Norway Price Areas (NO1–NO5)")
+st.title("Energy Map & Snow Drift Explorer")
 
 # ==============================================================================
 # Normalize function for GeoJSON and dataframe keys
 # ==============================================================================
 def normalize_area_name(name):
     if isinstance(name, str):
-        name = name.replace(" ", "")  # remove spaces
+        name = name.replace(" ", "")
         if name.startswith("N0") and len(name) == 3:
             return "NO" + name[-1]
     return name
 
 # ==============================================================================
-# Load GeoJSON and inject normalized keys
+# Load GeoJSON
 # ==============================================================================
 geojson_path = Path(__file__).parent / "data" / "ElSpot_omraade.geojson"
 with open(geojson_path, "r", encoding="utf-8") as f:
@@ -58,7 +59,7 @@ group = st.selectbox("Select group:", groups)
 days = st.slider("Time interval (days):", 1, 30, 7)
 
 # ==============================================================================
-# Prepare filtered dataframe
+# Filter dataframe
 # ==============================================================================
 df = df.copy()
 df["starttime"] = pd.to_datetime(df["starttime"])
@@ -73,9 +74,6 @@ df_period = df[
     (df[group_col] == group)
 ]
 
-# ==============================================================================
-# Compute mean per price area
-# ==============================================================================
 means_df = df_period.groupby("pricearea", as_index=False)["quantitykwh"].mean()
 means_dict = dict(zip(means_df["pricearea"], means_df["quantitykwh"]))
 
@@ -84,19 +82,14 @@ if means_df.empty:
     st.stop()
 
 # ==============================================================================
-# Create map
+# Map
 # ==============================================================================
 m = folium.Map(location=[63.0, 10.5], zoom_start=5.5)
 
-# Thresholds for choropleth
 vmin = means_df["quantitykwh"].min()
 vmax = means_df["quantitykwh"].max()
-if np.isclose(vmin, vmax):
-    thresholds = [vmin - 1e-6, vmin, vmax + 1e-6]
-else:
-    thresholds = np.linspace(vmin, vmax, 6).tolist()
+thresholds = np.linspace(vmin, vmax, 6).tolist() if not np.isclose(vmin, vmax) else [vmin-1e-6, vmin, vmax+1e-6]
 
-# Choropleth layer
 folium.Choropleth(
     geo_data=geojson_data,
     name="choropleth",
@@ -112,7 +105,6 @@ folium.Choropleth(
     nan_fill_color="lightgray"
 ).add_to(m)
 
-# Tooltip layer
 folium.GeoJson(
     geojson_data,
     name="tooltips",
@@ -125,20 +117,17 @@ folium.GeoJson(
     style_function=lambda _: {"color": "transparent", "weight": 0, "fillOpacity": 0}
 ).add_to(m)
 
-# Marker for clicked point
 if st.session_state.clicked_point:
     folium.Marker(
         st.session_state.clicked_point,
         icon=folium.Icon(color="red", icon="info-sign")
     ).add_to(m)
 
-# Highlight selected area
 if st.session_state.selected_area:
     def highlight_style(feat):
-        is_sel = feat["properties"]["ElSpotOmrNorm"] == st.session_state.selected_area
-        if is_sel:
-            return {"color": "#d62728", "weight": 4, "fillOpacity": 0}
-        return {"color": "transparent", "weight": 0, "fillOpacity": 0}
+        return {"color": "#d62728", "weight": 4, "fillOpacity": 0} \
+            if feat["properties"]["ElSpotOmrNorm"] == st.session_state.selected_area \
+            else {"color": "transparent", "weight": 0, "fillOpacity": 0}
 
     folium.GeoJson(
         geojson_data,
@@ -147,12 +136,8 @@ if st.session_state.selected_area:
         tooltip=None,
     ).add_to(m)
 
-# Single st_folium call
 map_data = st_folium(m, width=950, height=630)
 
-# ==============================================================================
-# Click handler
-# ==============================================================================
 if map_data and map_data.get("last_clicked"):
     lat = map_data["last_clicked"]["lat"]
     lon = map_data["last_clicked"]["lng"]
@@ -160,13 +145,11 @@ if map_data and map_data.get("last_clicked"):
 
     point = Point(lon, lat)
     clicked_area = None
-
     for feature in geojson_data["features"]:
         geom = shape(feature["geometry"])
         if isinstance(geom, (Polygon, MultiPolygon)) and geom.contains(point):
             clicked_area = feature["properties"]["ElSpotOmrNorm"]
             break
-
     st.session_state.selected_area = clicked_area
 
 # ==============================================================================
@@ -184,3 +167,46 @@ if st.session_state.selected_area:
 
 if st.session_state.clicked_point:
     st.write(f"Clicked coordinates: {st.session_state.clicked_point}")
+
+# ==============================================================================
+# Snow Drift Section (now on same page)
+# ==============================================================================
+st.write("---")
+st.header("❄️ Snow Drift Explorer")
+
+if st.session_state.clicked_point:
+    lat, lon = st.session_state.clicked_point
+    st.write(f"Using coordinates: {lat:.3f}, {lon:.3f}")
+
+    start_year, end_year = st.slider(
+        "Select seasonal year range (July–June)",
+        min_value=2000, max_value=2025,
+        value=(2015, 2020)
+    )
+
+    years = range(start_year, end_year + 1)
+    results = []
+    for y in years:
+        start_date = pd.Timestamp(year=y, month=7, day=1)
+        end_date = pd.Timestamp(year=y+1, month=6, day=30, hour=23, minute=59, second=59)
+        try:
+            drift = calculate_snow_drift(lat, lon, start_date, end_date)
+        except FileNotFoundError as e:
+            st.error(str(e))
+            st.stop()
+        results.append({"year": f"{y}-{y+1}", "snow_drift_kgm": drift})
+
+    df_drift = pd.DataFrame(results)
+    df_drift["snow_drift_tonnesm"] = df_drift["snow_drift_kgm"] / 1000.0
+
+    st.write("### Annual snow drift (July–June)")
+    st.bar_chart(df_drift.set_index("year")["snow_drift_tonnesm"])
+
+    st.write("### Wind rose")
+    try:
+        fig = plot_wind_rose(lat, lon, start_year, end_year)
+        st.pyplot(fig)
+    except FileNotFoundError as e:
+        st.error(str(e))
+else:
+    st.warning("No coordinates selected on the map above. Please click a location.")
