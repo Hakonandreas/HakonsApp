@@ -169,7 +169,7 @@ if st.session_state.clicked_point:
     st.write(f"Clicked coordinates: {st.session_state.clicked_point}")
 
 # ==============================================================================
-# Snow Drift Section (now on same page)
+# Snow Drift Section
 # ==============================================================================
 st.write("---")
 st.header("❄️ Snow Drift Explorer")
@@ -205,6 +205,7 @@ if st.session_state.clicked_point:
     st.write("### Wind rose")
     try:
         fig = plot_wind_rose(lat, lon, start_year, end_year)
+        fig.set_size_inches(5,5)
         st.pyplot(fig)
     except FileNotFoundError as e:
         st.error(str(e))
