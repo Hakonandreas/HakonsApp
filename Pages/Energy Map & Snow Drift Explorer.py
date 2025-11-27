@@ -8,8 +8,7 @@ import pandas as pd
 import numpy as np
 from datetime import timedelta
 from functions.elhub_utils import load_elhub_data, load_elhub_consumption
-from functions.Snow_drift import calculate_snow_drift, plot_wind_rose, compute_snow_transport
-from functions.weather_utils import download_era5_data
+from functions.Snow_drift import calculate_snow_drift, plot_wind_rose
 
 st.set_page_config(layout="wide")
 st.title("Energy Map & Snow Drift Explorer")
@@ -175,12 +174,6 @@ if st.session_state.clicked_point:
 st.write("---")
 st.header("❄️ Snow Drift Explorer")
 
-# ==============================================================================
-# Snow Drift Section
-# ==============================================================================
-st.write("---")
-st.header("❄️ Snow Drift Explorer")
-
 def calculate_monthly_snow_drift(lat, lon, start_date, end_date):
     """Calculate snow drift for each month between start_date and end_date."""
     monthly = []
@@ -192,7 +185,6 @@ def calculate_monthly_snow_drift(lat, lon, start_date, end_date):
         drift = calculate_snow_drift(lat, lon, current_start, current_end)
         monthly.append({
             "month": current_start.strftime("%Y-%m"),
-            "year": f"{start_date.year}-{end_date.year}",
             "snow_drift_kgm": drift
         })
         current_start = current_end + pd.Timedelta(seconds=1)
@@ -204,8 +196,8 @@ if st.session_state.clicked_point:
 
     start_year, end_year = st.slider(
         "Select seasonal year range (July–June)",
-        min_value=2020, max_value=2023,
-        value=(2021, 2023)
+        min_value=2000, max_value=2025,
+        value=(2015, 2020)
     )
 
     years = range(start_year, end_year + 1)
@@ -222,35 +214,43 @@ if st.session_state.clicked_point:
             st.error(str(e))
             st.stop()
         annual_results.append({"year": f"{y}-{y+1}", "snow_drift_kgm": drift})
+        drift_monthly["season"] = f"{y}-{y+1}"
         monthly_results.append(drift_monthly)
 
-    # Annual plot
+    # --- Annual plot ---
     df_annual = pd.DataFrame(annual_results)
     df_annual["snow_drift_tonnesm"] = df_annual["snow_drift_kgm"] / 1000.0
     st.write("### Annual snow drift (July–June)")
     st.bar_chart(df_annual.set_index("year")["snow_drift_tonnesm"])
 
-    # Monthly plot (all years in one chart, colored lines)
+    # --- Monthly plot (overlapping lines per seasonal year) ---
     st.write("### Monthly snow drift (kg/m)")
     df_monthly_all = pd.concat(monthly_results, ignore_index=True)
+    df_monthly_all["month_name"] = pd.to_datetime(df_monthly_all["month"]).dt.strftime("%b")
+    df_monthly_all["month_order"] = pd.to_datetime(df_monthly_all["month"]).dt.month
+
+    # Reorder months to start from July
+    month_labels = ["Jul","Aug","Sep","Oct","Nov","Dec","Jan","Feb","Mar","Apr","May","Jun"]
+    df_monthly_all["month_name"] = pd.Categorical(df_monthly_all["month_name"], categories=month_labels, ordered=True)
 
     import plotly.express as px
     fig = px.line(
         df_monthly_all,
-        x="month",
+        x="month_name",
         y="snow_drift_kgm",
-        color="year",
+        color="season",
         markers=True,
-        title="Monthly snow drift per seasonal year"
+        category_orders={"month_name": month_labels},
+        title="Monthly snow drift per seasonal year (Jul–Jun)"
     )
-    fig.update_layout(xaxis_tickangle=-45)
+    fig.update_layout(xaxis_title="Month", yaxis_title="Snow drift (kg/m)", xaxis_tickangle=-45)
     st.plotly_chart(fig, use_container_width=True)
 
-    # Wind rose
+    # --- Wind rose ---
     st.write("### Wind rose")
     try:
         fig = plot_wind_rose(lat, lon, start_year, end_year)
-        fig.set_size_inches(4,4)
+        fig.set_size_inches(4, 4)
         st.pyplot(fig)
     except FileNotFoundError as e:
         st.error(str(e))
