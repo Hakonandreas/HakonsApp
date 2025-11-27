@@ -5,8 +5,8 @@ st.title("Project IND320")
 st.sidebar.title("Navigation")
 
 # List of page names (must match filenames without .py)
-pages = ["Home", "Elhub", "STL and Spectrogram Analysis", 
-         "Raw Data", "Weather Data Explorer", "Outlier and Anomali Detection", 
+pages = ["Home", "Elhub Production Overview", "STL and Spectrogram Analysis",
+         "Weather Data Explorer", "Outlier and Anomali Detection", 
          "Energy Map & Snow Drift Explorer", "SWC Meteorology and Energy", "Forecasting"]
 choice = st.sidebar.selectbox("Go to", pages)
 
