@@ -175,39 +175,82 @@ if st.session_state.clicked_point:
 st.write("---")
 st.header("❄️ Snow Drift Explorer")
 
+# ==============================================================================
+# Snow Drift Section
+# ==============================================================================
+st.write("---")
+st.header("❄️ Snow Drift Explorer")
+
+def calculate_monthly_snow_drift(lat, lon, start_date, end_date):
+    """Calculate snow drift for each month between start_date and end_date."""
+    monthly = []
+    current_start = start_date
+    while current_start < end_date:
+        current_end = (current_start + pd.offsets.MonthEnd(0)).replace(hour=23, minute=59, second=59)
+        if current_end > end_date:
+            current_end = end_date
+        drift = calculate_snow_drift(lat, lon, current_start, current_end)
+        monthly.append({
+            "month": current_start.strftime("%Y-%m"),
+            "year": f"{start_date.year}-{end_date.year}",
+            "snow_drift_kgm": drift
+        })
+        current_start = current_end + pd.Timedelta(seconds=1)
+    return pd.DataFrame(monthly)
+
 if st.session_state.clicked_point:
     lat, lon = st.session_state.clicked_point
     st.write(f"Using coordinates: {lat:.3f}, {lon:.3f}")
 
     start_year, end_year = st.slider(
         "Select seasonal year range (July–June)",
-        min_value=2000, max_value=2025,
-        value=(2015, 2020)
+        min_value=2020, max_value=2023,
+        value=(2021, 2023)
     )
 
-    # --- Yearly drift ---
     years = range(start_year, end_year + 1)
-    results = []
+    annual_results = []
+    monthly_results = []
+
     for y in years:
         start_date = pd.Timestamp(year=y, month=7, day=1)
         end_date = pd.Timestamp(year=y+1, month=6, day=30, hour=23, minute=59, second=59)
         try:
             drift = calculate_snow_drift(lat, lon, start_date, end_date)
+            drift_monthly = calculate_monthly_snow_drift(lat, lon, start_date, end_date)
         except FileNotFoundError as e:
             st.error(str(e))
             st.stop()
-        results.append({"year": f"{y}-{y+1}", "snow_drift_kgm": drift})
+        annual_results.append({"year": f"{y}-{y+1}", "snow_drift_kgm": drift})
+        monthly_results.append(drift_monthly)
 
-    df_drift = pd.DataFrame(results)
-    df_drift["snow_drift_tonnesm"] = df_drift["snow_drift_kgm"] / 1000.0
-
+    # Annual plot
+    df_annual = pd.DataFrame(annual_results)
+    df_annual["snow_drift_tonnesm"] = df_annual["snow_drift_kgm"] / 1000.0
     st.write("### Annual snow drift (July–June)")
-    st.bar_chart(df_drift.set_index("year")["snow_drift_tonnesm"])
+    st.bar_chart(df_annual.set_index("year")["snow_drift_tonnesm"])
 
-    # --- Wind rose ---
+    # Monthly plot (all years in one chart, colored lines)
+    st.write("### Monthly snow drift (kg/m)")
+    df_monthly_all = pd.concat(monthly_results, ignore_index=True)
+
+    import plotly.express as px
+    fig = px.line(
+        df_monthly_all,
+        x="month",
+        y="snow_drift_kgm",
+        color="year",
+        markers=True,
+        title="Monthly snow drift per seasonal year"
+    )
+    fig.update_layout(xaxis_tickangle=-45)
+    st.plotly_chart(fig, use_container_width=True)
+
+    # Wind rose
     st.write("### Wind rose")
     try:
         fig = plot_wind_rose(lat, lon, start_year, end_year)
+        fig.set_size_inches(4,4)
         st.pyplot(fig)
     except FileNotFoundError as e:
         st.error(str(e))
