@@ -99,6 +99,13 @@ else:
 if lag_days != 0:
     weather_series = weather_series.shift(lag_days)
 
+# Makes both series tz-naive
+if energy_series.index.tz is not None:
+    energy_series.index = energy_series.index.tz_localize(None)
+
+if weather_series.index.tz is not None:
+    weather_series.index = weather_series.index.tz_localize(None)
+
 # -------------------------
 # Align data (daily) and DROP TIMEZONE
 # -------------------------
