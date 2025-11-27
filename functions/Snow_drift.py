@@ -192,8 +192,9 @@ def plot_monthly_wind_roses_grid(lat: float, lon: float, start_year: int, end_ye
         row = idx // 2 + 1
         col = idx % 2 + 1
 
-        start_date = pd.Timestamp(year=y, month=7, day=1)
-        end_date = pd.Timestamp(year=y+1, month=6, day=30, hour=23, minute=59)
+        # Make start/end tz-aware
+        start_date = pd.Timestamp(year=y, month=7, day=1, tz="Europe/Oslo")
+        end_date = pd.Timestamp(year=y+1, month=6, day=30, hour=23, minute=59, tz="Europe/Oslo")
 
         dfs = [download_era5_data(lat, lon, yr) for yr in {y, y+1}]
         df = pd.concat(dfs).sort_values("time")
