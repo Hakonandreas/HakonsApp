@@ -175,40 +175,6 @@ if st.session_state.clicked_point:
 st.write("---")
 st.header("❄️ Snow Drift Explorer")
 
-def calculate_monthly_snow_drift(lat: float, lon: float, start_date: pd.Timestamp, end_date: pd.Timestamp) -> pd.DataFrame:
-    """
-    Calculate monthly and yearly snow drift (Qt) for given coordinates and date range.
-    Returns a DataFrame with columns: ['year', 'month', 'Qt_kgm'].
-    """
-    years = {start_date.year, end_date.year}
-    dfs = [download_era5_data(lat, lon, y) for y in years]
-    df = pd.concat(dfs).sort_values("time")
-
-    # Ensure tz-aware
-    df["time"] = df["time"].dt.tz_convert("Europe/Oslo")
-    start_date = pd.Timestamp(start_date).tz_localize("Europe/Oslo") if start_date.tzinfo is None else start_date
-    end_date = pd.Timestamp(end_date).tz_localize("Europe/Oslo") if end_date.tzinfo is None else end_date
-
-    df_period = df[(df["time"] >= start_date) & (df["time"] <= end_date)].copy()
-    if df_period.empty:
-        return pd.DataFrame(columns=["year", "month", "Qt_kgm"])
-
-    # Hourly Swe
-    df_period["Swe_hourly"] = df_period.apply(
-        lambda row: row["precipitation"] if row["temperature_2m"] < 1 else 0, axis=1
-    )
-
-    T, F, theta = 3000, 30000, 0.5
-
-    results = []
-    for (y, m), sub in df_period.groupby([df_period["time"].dt.year, df_period["time"].dt.month]):
-        Swe_total = sub["Swe_hourly"].sum()
-        wind_speeds = sub["wind_speed_10m"].tolist()
-        Qt = compute_snow_transport(T, F, theta, Swe_total, wind_speeds)
-        results.append({"year": y, "month": m, "Qt_kgm": Qt})
-
-    return pd.DataFrame(results)
-
 if st.session_state.clicked_point:
     lat, lon = st.session_state.clicked_point
     st.write(f"Using coordinates: {lat:.3f}, {lon:.3f}")
@@ -219,7 +185,7 @@ if st.session_state.clicked_point:
         value=(2015, 2020)
     )
 
-    # --- Yearly drift (keep your existing loop) ---
+    # --- Yearly drift ---
     years = range(start_year, end_year + 1)
     results = []
     for y in years:
@@ -238,28 +204,7 @@ if st.session_state.clicked_point:
     st.write("### Annual snow drift (July–June)")
     st.bar_chart(df_drift.set_index("year")["snow_drift_tonnesm"])
 
-    # --- Monthly drift (new addition) ---
-    st.write("### Monthly snow drift")
-    start_date = pd.Timestamp(year=start_year, month=7, day=1)
-    end_date = pd.Timestamp(year=end_year+1, month=6, day=30, hour=23, minute=59)
-    df_monthly = calculate_monthly_snow_drift(lat, lon, start_date, end_date)
-    df_monthly["Qt_tonnesm"] = df_monthly["Qt_kgm"] / 1000.0
-    df_monthly["period"] = df_monthly["year"].astype(str) + "-" + df_monthly["month"].astype(str).str.zfill(2)
-
-    import matplotlib.pyplot as plt
-    fig, ax = plt.subplots(figsize=(10,6))
-    ax.bar(df_monthly["period"], df_monthly["Qt_tonnesm"], label="Monthly drift (tonnes/m)")
-    ax.plot(df_drift["year"], df_drift["snow_drift_tonnesm"], color="red", marker="o", label="Yearly drift (tonnes/m)")
-    ax.set_ylabel("Snow drift (tonnes/m)")
-    ax.set_xticklabels(df_monthly["period"], rotation=45, ha="right")
-    ax.legend()
-    st.pyplot(fig)
-
-    # --- New Plotly chart for monthly + yearly ---
-    st.write("### Monthly vs Yearly Snow Drift (interactive)")
-    st.plotly_chart(fig, use_container_width=True)
-
-    # --- Wind rose (keep as is) ---
+    # --- Wind rose ---
     st.write("### Wind rose")
     try:
         fig = plot_wind_rose(lat, lon, start_year, end_year)
@@ -268,4 +213,3 @@ if st.session_state.clicked_point:
         st.error(str(e))
 else:
     st.warning("No coordinates selected on the map above. Please click a location.")
-
