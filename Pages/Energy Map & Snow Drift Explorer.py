@@ -250,7 +250,7 @@ if st.session_state.clicked_point:
     st.write("### Wind rose")
     try:
         fig = plot_wind_rose_plotly(lat, lon, start_year, end_year)
-        st.pyplot_chart(fig, use_container_width=True)
+        st.plotly_chart(fig, use_container_width=True)
     except FileNotFoundError as e:
         st.error(str(e))
 else:
