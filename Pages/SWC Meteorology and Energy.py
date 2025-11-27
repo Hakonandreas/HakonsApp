@@ -3,7 +3,7 @@ import pandas as pd
 import numpy as np
 import plotly.express as px
 
-from functions import download_era5_data
+from functions.weather_utils import download_era5_data
 from functions.elhub_utils import load_elhub_data, load_elhub_consumption
 
 
