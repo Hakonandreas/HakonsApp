@@ -9,7 +9,7 @@ import numpy as np
 from datetime import timedelta
 import plotly.express as px
 from functions.elhub_utils import load_elhub_data, load_elhub_consumption
-from functions.Snow_drift import calculate_snow_drift, plot_wind_rose_plotly
+from functions.Snow_drift import calculate_snow_drift, plot_wind_rose_plotly, plot_monthly_wind_roses_grid
 
 st.set_page_config(layout="wide")
 st.title("Energy Map & Snow Drift Explorer")
@@ -246,11 +246,19 @@ if st.session_state.clicked_point:
     fig.update_layout(xaxis_title="Month", yaxis_title="Snow drift (kg/m)", xaxis_tickangle=-45)
     st.plotly_chart(fig, use_container_width=True)
 
-    # --- Wind rose ---
-    st.write("### Wind rose")
+    # --- Main aggregated wind rose ---
+    st.write("### Wind rose (all selected years)")
     try:
         fig = plot_wind_rose_plotly(lat, lon, start_year, end_year)
         st.plotly_chart(fig, use_container_width=True)
+    except FileNotFoundError as e:
+        st.error(str(e))
+
+    # --- Monthly-colored roses per year ---
+    st.write("### Wind roses per year (monthly colors)")
+    try:
+        fig_grid = plot_monthly_wind_roses_grid(lat, lon, start_year, end_year)
+        st.plotly_chart(fig_grid, use_container_width=True)
     except FileNotFoundError as e:
         st.error(str(e))
 else:
