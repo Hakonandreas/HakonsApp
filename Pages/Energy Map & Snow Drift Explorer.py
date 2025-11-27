@@ -152,7 +152,9 @@ if map_data and map_data.get("last_clicked"):
             clicked_area = feature["properties"]["ElSpotOmrNorm"]
             break
     st.session_state.selected_area = clicked_area
-    
+
+    st.experimental_rerun()
+
 # ==============================================================================
 # Display values
 # ==============================================================================
