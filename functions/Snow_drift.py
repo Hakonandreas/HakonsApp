@@ -1,7 +1,9 @@
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
+import plotly.graph_objects as go
 from functions.weather_utils import download_era5_data
+
 
 
 # --- Tabler (2003) components ---
@@ -111,4 +113,53 @@ def plot_wind_rose(lat: float, lon: float, start_year: int, end_year: int):
     ax.set_xticks(angles)
     ax.set_xticklabels(directions)
     ax.set_title(f"Wind rose {start_year}-{end_year}\nAvg Qt: {Qt/1000:.1f} tonnes/m")
+    return fig
+
+def plot_wind_rose_plotly(lat: float, lon: float, start_year: int, end_year: int):
+    """
+    Download ERA5 data and plot wind rose using Plotly.
+    Returns a Plotly Figure.
+    """
+    dfs = [download_era5_data(lat, lon, y) for y in range(start_year, end_year + 1)]
+    df = pd.concat(dfs).sort_values("time")
+    if df.empty:
+        return go.Figure().add_annotation(text="No data in selected range", showarrow=False)
+
+    df["time"] = df["time"].dt.tz_convert("Europe/Oslo")
+    df["Swe_hourly"] = df.apply(
+        lambda row: row["precipitation"] if row["temperature_2m"] < 1 else 0, axis=1
+    )
+
+    ws = df["wind_speed_10m"].tolist()
+    wd = df["wind_direction_10m"].tolist()
+    sectors = compute_sector_transport(ws, wd)
+
+    angles_deg = np.arange(0, 360, 360 / 16)
+    directions = ['N','NNE','NE','ENE','E','ESE','SE','SSE',
+                  'S','SSW','SW','WSW','W','WNW','NW','NNW']
+
+    fig = go.Figure()
+    fig.add_trace(go.Barpolar(
+        r=np.array(sectors)/1000.0,
+        theta=angles_deg,
+        width=[22.5]*16,
+        marker_color="lightblue",
+        marker_line_color="black",
+        marker_line_width=1,
+        name="Snow drift sectors"
+    ))
+
+    fig.update_layout(
+        polar=dict(
+            angularaxis=dict(
+                direction="clockwise",
+                rotation=90,
+                tickmode="array",
+                tickvals=angles_deg,
+                ticktext=directions
+            )
+        ),
+        title=f"Wind rose {start_year}-{end_year}",
+        showlegend=False
+    )
     return fig

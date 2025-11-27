@@ -7,8 +7,9 @@ from pathlib import Path
 import pandas as pd
 import numpy as np
 from datetime import timedelta
+import plotly.express as px
 from functions.elhub_utils import load_elhub_data, load_elhub_consumption
-from functions.Snow_drift import calculate_snow_drift, plot_wind_rose
+from functions.Snow_drift import calculate_snow_drift, plot_wind_rose_plotly
 
 st.set_page_config(layout="wide")
 st.title("Energy Map & Snow Drift Explorer")
@@ -195,9 +196,9 @@ if st.session_state.clicked_point:
     st.write(f"Using coordinates: {lat:.3f}, {lon:.3f}")
 
     start_year, end_year = st.slider(
-        "Select seasonal year range (July–June)",
-        min_value=2000, max_value=2025,
-        value=(2015, 2020)
+        "Select seasonal year range (July-June)",
+        min_value=2000, max_value=2023,
+        value=(2020, 2023)
     )
 
     years = range(start_year, end_year + 1)
@@ -233,7 +234,6 @@ if st.session_state.clicked_point:
     month_labels = ["Jul","Aug","Sep","Oct","Nov","Dec","Jan","Feb","Mar","Apr","May","Jun"]
     df_monthly_all["month_name"] = pd.Categorical(df_monthly_all["month_name"], categories=month_labels, ordered=True)
 
-    import plotly.express as px
     fig = px.line(
         df_monthly_all,
         x="month_name",
@@ -241,7 +241,7 @@ if st.session_state.clicked_point:
         color="season",
         markers=True,
         category_orders={"month_name": month_labels},
-        title="Monthly snow drift per seasonal year (Jul–Jun)"
+        title="Monthly snow drift per seasonal year (Jul-Jun)"
     )
     fig.update_layout(xaxis_title="Month", yaxis_title="Snow drift (kg/m)", xaxis_tickangle=-45)
     st.plotly_chart(fig, use_container_width=True)
@@ -249,8 +249,7 @@ if st.session_state.clicked_point:
     # --- Wind rose ---
     st.write("### Wind rose")
     try:
-        fig = plot_wind_rose(lat, lon, start_year, end_year)
-        fig.set_size_inches(4, 4)
+        fig = plot_wind_rose_plotly(lat, lon, start_year, end_year)
         st.pyplot(fig)
     except FileNotFoundError as e:
         st.error(str(e))
