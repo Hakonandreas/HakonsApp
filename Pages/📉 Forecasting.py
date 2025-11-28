@@ -170,7 +170,8 @@ if run:
     fig.add_trace(go.Scatter(
         x=mean.index, y=mean.values,
         mode="lines", name="Forecast"
-    ))
+        line=dict(color='red')
+        ))
 
     # Confidence interval (shaded area)
     fig.add_trace(go.Scatter(

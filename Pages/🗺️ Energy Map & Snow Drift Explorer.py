@@ -249,7 +249,6 @@ if st.session_state.clicked_point:
     st.plotly_chart(fig, use_container_width=True)
 
     # Wind Rose
-    st.write("### Wind rose (all selected years)")
     try:
         fig = plot_wind_rose_plotly(lat, lon, start_year, end_year)
         st.plotly_chart(fig, use_container_width=True)
