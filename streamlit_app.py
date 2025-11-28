@@ -83,7 +83,7 @@ if choice == "🏠 Home":
         )
 
 else:
-    with open(f"Pages/{filename}.py", "r") as f:
+    with open(f"Pages/{choice}.py", "r") as f:
         code = f.read()
     exec(code, globals())
 
