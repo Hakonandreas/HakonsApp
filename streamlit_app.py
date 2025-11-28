@@ -4,11 +4,56 @@ st.title("Project IND320")
 
 st.sidebar.title("Navigation")
 
-# List of page names (must match filenames without .py)
-pages = ["Home", "Elhub Production Overview", "STL and Spectrogram Analysis",
-         "Weather Data Explorer", "Outlier and Anomali Detection", 
-         "Energy Map & Snow Drift Explorer", "SWC Meteorology and Energy", "Forecasting"]
-choice = st.sidebar.selectbox("Go to", pages)
+# Group pages into categories
+page_groups = {
+    "Overview": {
+        "🏠 Home": "Home",
+        "⚡ Elhub Production Overview": "Elhub Production Overview",
+        "🌦️ Weather Data Explorer": "Weather Data Explorer",
+    },
+    "Analysis Tools": {
+        "📈 STL & Spectrogram Analysis": "STL and Spectrogram Analysis",
+        "🔍 Outlier & Anomaly Detection": "Outlier and Anomali Detection",
+        "🌡️ SWC Meteorology & Energy": "SWC Meteorology and Energy",
+    },
+    "Mapping & Environment": {
+        "🗺️ Energy Map & Snow Drift Explorer": "Energy Map & Snow Drift Explorer",
+    },
+    "Forecasting": {
+        "📉 Forecasting": "Forecasting",
+    }
+}
+
+# Sidebar menu with separators and labels
+st.sidebar.markdown("### Overview")
+overview_choice = st.sidebar.radio("", list(page_groups["Overview"].keys()))
+
+st.sidebar.markdown("---")
+st.sidebar.markdown("### Analysis Tools")
+analysis_choice = st.sidebar.radio("", list(page_groups["Analysis Tools"].keys()))
+
+st.sidebar.markdown("---")
+st.sidebar.markdown("### Mapping & Environment")
+mapping_choice = st.sidebar.radio("", list(page_groups["Mapping & Environment"].keys()))
+
+st.sidebar.markdown("---")
+st.sidebar.markdown("### Forecasting")
+forecast_choice = st.sidebar.radio("", list(page_groups["Forecasting"].keys()))
+
+# Determine current selection
+choice = (
+    overview_choice or 
+    analysis_choice or 
+    mapping_choice or 
+    forecast_choice
+)
+
+page_file = (
+    page_groups["Overview"].get(choice) or
+    page_groups["Analysis Tools"].get(choice) or
+    page_groups["Mapping & Environment"].get(choice) or
+    page_groups["Forecasting"].get(choice)
+)
 
 # Load selected page
 if choice == "Home":
