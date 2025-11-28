@@ -18,4 +18,3 @@ windrose
 branca
 pathlib
 typing
-st-pages==0.4.5
