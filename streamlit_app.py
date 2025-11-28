@@ -4,7 +4,7 @@ st.title("Project IND320")
 
 st.sidebar.title("Navigation")
 
-# Group pages into categories
+# Mapping: display name -> filename (no emojis in filenames!)
 page_groups = {
     "Overview": {
         "🏠 Home": "Home",
@@ -24,36 +24,18 @@ page_groups = {
     }
 }
 
-# Sidebar menu with separators and labels
-st.sidebar.markdown("### Overview")
-overview_choice = st.sidebar.radio("", list(page_groups["Overview"].keys()))
+# ---- DROPDOWN PER CATEGORY ----
+choice = None
 
-st.sidebar.markdown("---")
-st.sidebar.markdown("### Analysis Tools")
-analysis_choice = st.sidebar.radio("", list(page_groups["Analysis Tools"].keys()))
-
-st.sidebar.markdown("---")
-st.sidebar.markdown("### Mapping & Environment")
-mapping_choice = st.sidebar.radio("", list(page_groups["Mapping & Environment"].keys()))
-
-st.sidebar.markdown("---")
-st.sidebar.markdown("### Forecasting")
-forecast_choice = st.sidebar.radio("", list(page_groups["Forecasting"].keys()))
-
-# Determine current selection
-choice = (
-    overview_choice or 
-    analysis_choice or 
-    mapping_choice or 
-    forecast_choice
-)
-
-page_file = (
-    page_groups["Overview"].get(choice) or
-    page_groups["Analysis Tools"].get(choice) or
-    page_groups["Mapping & Environment"].get(choice) or
-    page_groups["Forecasting"].get(choice)
-)
+for group_label, pages in page_groups.items():
+    st.sidebar.markdown(f"### {group_label}")
+    selection = st.sidebar.selectbox(
+        f"Select {group_label} page", 
+        ["-- None --"] + list(pages.keys()),
+        key=group_label  # unique key per selectbox
+    )
+    if selection != "-- None --":
+        choice = pages[selection]
 
 # Load selected page
 if choice == "Home":
