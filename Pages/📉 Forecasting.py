@@ -169,7 +169,7 @@ if run:
     # Forecast series
     fig.add_trace(go.Scatter(
         x=mean.index, y=mean.values,
-        mode="lines", name="Forecast"
+        mode="lines", name="Forecast",
         line=dict(color='red')
         ))
 
