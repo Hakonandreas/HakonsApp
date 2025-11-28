@@ -83,8 +83,6 @@ if choice == "🏠 Home":
         )
 
 else:
-    # Strip emoji from choice to match filename
-    filename = choice.split(" ", 1)[1]  # remove emoji prefix
     with open(f"Pages/{filename}.py", "r") as f:
         code = f.read()
     exec(code, globals())
